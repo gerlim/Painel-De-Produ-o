@@ -3,6 +3,7 @@ import Script from 'next/script'
 import { Bebas_Neue, DM_Sans, DM_Mono } from 'next/font/google'
 import './globals.css'
 import PwaRegister from '@/components/PwaRegister'
+import AppIntroSplash from '@/components/AppIntroSplash'
 import { getThemeInitScript } from '@/lib/theme'
 
 const display = Bebas_Neue({
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {getThemeInitScript()}
         </Script>
         <PwaRegister />
+        <AppIntroSplash />
         {children}
       </body>
     </html>

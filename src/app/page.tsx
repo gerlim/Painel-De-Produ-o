@@ -42,6 +42,22 @@ import ThemeModeControl from '@/components/ThemeModeControl'
 
 type TabId = 'resumo' | 'dinamica' | 'produtos' | 'pedidos' | 'operadores'
 
+const CHART_TOOLTIP_CONTENT_STYLE = {
+  background: '#0f1d31',
+  border: '1px solid rgba(255,255,255,0.22)',
+  borderRadius: 10,
+  color: '#e8eef8',
+}
+
+const CHART_TOOLTIP_LABEL_STYLE = {
+  color: '#e8eef8',
+  fontWeight: 700,
+}
+
+const CHART_TOOLTIP_ITEM_STYLE = {
+  color: '#e8eef8',
+}
+
 function toIsoDate(datePtBr: string) {
   const [dd, mm, yyyy] = datePtBr.split('/')
   if (!dd || !mm || !yyyy) return datePtBr
@@ -1051,8 +1067,9 @@ function ResumoTab({ pedidos, isAdmin }: { pedidos: Pedido[]; isAdmin: boolean }
               <XAxis dataKey="data" tick={{ fill: '#8a9ab5', fontSize: 11 }} />
               <YAxis tick={{ fill: '#8a9ab5', fontSize: 11 }} />
               <Tooltip
-                contentStyle={{ background: '#152033', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8 }}
-                labelStyle={{ color: '#e8e4dc' }}
+                contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
                 formatter={(value: number, name: string) => [fmt(Number(value)), name]}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -1080,7 +1097,9 @@ function ResumoTab({ pedidos, isAdmin }: { pedidos: Pedido[]; isAdmin: boolean }
                 ))}
               </Pie>
               <Tooltip
-                contentStyle={{ background: '#152033', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8 }}
+                contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
                 formatter={(value: number, name: string) => [`${fmt(Number(value))} caixas`, name]}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -1096,7 +1115,9 @@ function ResumoTab({ pedidos, isAdmin }: { pedidos: Pedido[]; isAdmin: boolean }
             <XAxis type="number" tick={{ fill: '#8a9ab5', fontSize: 11 }} />
             <YAxis dataKey="operador" type="category" tick={{ fill: '#e8e4dc', fontSize: 11 }} width={90} />
             <Tooltip
-              contentStyle={{ background: '#152033', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8 }}
+              contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+              labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+              itemStyle={CHART_TOOLTIP_ITEM_STYLE}
               formatter={(value: number, name: string) => [fmt(Number(value)), name === 'caixas' ? 'Caixas' : 'Pedidos']}
             />
             <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -1258,7 +1279,9 @@ function OperadoresTab({ pedidos }: { pedidos: Pedido[] }) {
               <YAxis yAxisId="left" tick={{ fill: '#8a9ab5', fontSize: 11 }} />
               <YAxis yAxisId="right" orientation="right" tick={{ fill: '#8a9ab5', fontSize: 11 }} />
               <Tooltip
-                contentStyle={{ background: '#152033', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8 }}
+                contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
                 formatter={(value: number, name: string) => [name === 'mediaServicosPorDia' ? Number(value).toFixed(1) : fmt(Number(value)), name === 'caixas' ? 'Caixas' : 'Media Servicos/Dia']}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -1275,7 +1298,9 @@ function OperadoresTab({ pedidos }: { pedidos: Pedido[] }) {
               <XAxis dataKey="data" tick={{ fill: '#8a9ab5', fontSize: 11 }} />
               <YAxis tick={{ fill: '#8a9ab5', fontSize: 11 }} />
               <Tooltip
-                contentStyle={{ background: '#152033', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8 }}
+                contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                itemStyle={CHART_TOOLTIP_ITEM_STYLE}
                 formatter={(value: number, name: string) => [fmt(Number(value)), name]}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />

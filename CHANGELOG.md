@@ -10,6 +10,20 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.0.3] - 2026-03-07
+
+### Added
+- Tela de abertura animada com a logo ao iniciar o app.
+
+### Changed
+- Melhorado contraste dos tooltips dos graficos para leitura no celular.
+- Ajustes de scroll vertical/horizontal para melhor navegacao em telas menores.
+
+## [1.0.2] - 2026-03-07
+
+### Changed
+- Removida do README a instrucao de fluxo interno de versionamento.
+- Atualizada versao atual no README para `v1.0.2`.
 
 ## [1.0.1] - 2026-03-07
 
