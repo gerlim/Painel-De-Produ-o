@@ -1,0 +1,13 @@
+.vercel
+.next
+node_modules
+android/.gradle
+android/build
+android/app/build
+.env
+.env.*
+!.env.example
+*.tgz
+*.log
+dist
+coverage

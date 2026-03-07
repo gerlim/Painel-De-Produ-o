@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Painel Producao</string>
+    <string name="title_activity_main">Painel Producao</string>
+    <string name="package_name">com.gesleyson.painelproducao</string>
+    <string name="custom_url_scheme">com.gesleyson.painelproducao</string>
+</resources>
