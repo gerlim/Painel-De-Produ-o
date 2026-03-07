@@ -73,9 +73,21 @@ Aplicacao local: `http://localhost:3000`
 
 ## Versionamento
 
-- versao atual: `v1.0.0`
+- versao atual: `v1.0.1`
 - arquivo de historico: `CHANGELOG.md`
 - padrao adotado: SemVer (`MAJOR.MINOR.PATCH`)
+
+### Fluxo obrigatorio apos alteracoes
+
+Para qualquer alteracao funcional no sistema, o fluxo padrao deve ser:
+
+1. atualizar codigo
+2. validar build (`npm run build`)
+3. publicar no Vercel (producao)
+4. atualizar `CHANGELOG.md`
+5. atualizar versao no `README.md`
+6. commit + push no GitHub
+7. criar e publicar tag da versao (ex.: `v1.0.2`)
 
 ## Deploy (Vercel)
 

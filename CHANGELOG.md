@@ -10,6 +10,12 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.0.1] - 2026-03-07
+
+### Changed
+- Documentado fluxo obrigatorio de entrega: build, deploy Vercel, atualizacao de versao e publicacao no GitHub.
+- Atualizacao de versao atual no README para `v1.0.1`.
+
 ## [1.0.0] - 2026-03-07
 
 ### Added
