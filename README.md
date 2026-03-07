@@ -99,7 +99,7 @@ Passo rapido para gerar APK debug:
 
 ```powershell
 $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-$env:ANDROID_HOME='C:\Users\Gesleyson\AppData\Local\Android\Sdk'
+$env:ANDROID_HOME='C:\Users\AppData\Local\Android\Sdk'
 $env:ANDROID_SDK_ROOT=$env:ANDROID_HOME
 npm run apk:sync
 npm run apk:build:debug
