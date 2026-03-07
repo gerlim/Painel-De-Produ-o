@@ -10,6 +10,20 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.0.5] - 2026-03-07
+
+### Added
+- Nova area de gestao para classificar modelos/prefixos nao mapeados com atalhos de preenchimento.
+- Cadastro de regras por `prefixo` ou `codigo` com opcoes de destino para status, tipo de caixa, tamanho e novo prefixo.
+- Edicao e exclusao de regras de classificacao diretamente no modal de Gestao (admin).
+
+### Changed
+- Importacao agora aplica regras ativas de classificacao automaticamente.
+- Opcao de aplicar regra tambem nos pedidos ja importados.
+
+### Infra
+- Schema Supabase atualizado com tabela `classificacao_regras`, indice unico e politicas RLS (admin para escrita, usuarios ativos para leitura).
+
 ## [1.0.4] - 2026-03-07
 
 ### Fixed

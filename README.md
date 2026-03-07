@@ -14,7 +14,7 @@ Principais recursos:
 - deduplicacao por `(data_producao, operador, order_id)`
 - KPIs com separacao correta entre servicos e testes
 - exportacao CSV da listagem filtrada
-- ferramentas administrativas (gestao de acesso, limpeza por periodo, ajustes de operador e tamanhos nao identificados)
+- ferramentas administrativas (gestao de acesso, limpeza por periodo, ajustes de operador, tamanhos nao identificados e regras de classificacao por prefixo/codigo)
 
 ## Stack
 
@@ -73,7 +73,7 @@ Aplicacao local: `http://localhost:3000`
 
 ## Versionamento
 
-- versao atual: `v1.0.4`
+- versao atual: `v1.0.5`
 - arquivo de historico: `CHANGELOG.md`
 - padrao adotado: SemVer (`MAJOR.MINOR.PATCH`)
 

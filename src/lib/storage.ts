@@ -8,6 +8,8 @@ import {
   toPedido,
   toPedidoInsertRow,
   type Pedido,
+  type StatusPedido,
+  type TipoCaixa,
 } from './parser'
 import { getSupabaseBrowserClient } from './supabase/client'
 
@@ -15,6 +17,7 @@ const LEGACY_STORAGE_KEYS = ['producao_pedidos', 'delpapeis_pedidos']
 
 export type UserRole = 'admin' | 'operador' | 'visualizador'
 export type ClearPeriod = 'day' | 'week' | 'month'
+export type ClassificacaoMatchField = 'prefixo' | 'codigo'
 
 export interface UserProfile {
   id: string
@@ -37,6 +40,36 @@ export interface ManagedProfile {
   displayName: string
   active: boolean
   createdAt: string
+}
+
+export interface ClassificacaoRegra {
+  id: number
+  matchField: ClassificacaoMatchField
+  matchValue: string
+  statusDestino: StatusPedido | null
+  tipoCaixaDestino: TipoCaixa | null
+  tamanhoDestino: string | null
+  prefixoDestino: string | null
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SaveClassificacaoRegraInput {
+  id?: number
+  matchField: ClassificacaoMatchField
+  matchValue: string
+  statusDestino: StatusPedido | null
+  tipoCaixaDestino: TipoCaixa | null
+  tamanhoDestino: string | null
+  prefixoDestino: string | null
+  active: boolean
+  applyToExisting: boolean
+}
+
+export interface SaveClassificacaoRegraReport {
+  id: number
+  atualizados: number
 }
 
 interface AddPedidosResult {
@@ -66,6 +99,9 @@ interface UpdateTamanhoReport {
   atualizados: number
   total: number
 }
+
+const TIPO_CAIXA_VALUES: TipoCaixa[] = ['Oitavada', 'Maleta', 'Quadrada', 'Flexo', 'Outro']
+const STATUS_VALUES: StatusPedido[] = ['SERVICO', 'TESTE']
 
 function dataToIso(value: string): string {
   const parts = value.split('/')
@@ -188,6 +224,64 @@ function normalizeRole(value: unknown): UserRole {
   return 'visualizador'
 }
 
+function normalizeRuleMatchField(value: unknown): ClassificacaoMatchField {
+  return value === 'codigo' ? 'codigo' : 'prefixo'
+}
+
+function normalizeRuleMatchValue(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+function normalizeOptionalText(value: unknown): string | null {
+  const text = String(value ?? '').trim()
+  return text ? text : null
+}
+
+function normalizeOptionalStatus(value: unknown): StatusPedido | null {
+  if (value == null) return null
+  const text = String(value).trim().toUpperCase()
+  if (STATUS_VALUES.includes(text as StatusPedido)) return text as StatusPedido
+  return null
+}
+
+function normalizeOptionalTipoCaixa(value: unknown): TipoCaixa | null {
+  if (value == null) return null
+  const text = String(value).trim()
+  const found = TIPO_CAIXA_VALUES.find((item) => item.toLowerCase() === text.toLowerCase())
+  return found || null
+}
+
+function normalizeOptionalTamanho(value: unknown): string | null {
+  const text = String(value ?? '').trim()
+  if (!text) return null
+  const parsed = parseTamanho(text)
+  if (parsed == null) return null
+  return String(parsed).toLowerCase().replace(/\s+/g, '')
+}
+
+function parseClassificacaoRegra(row: Record<string, unknown>): ClassificacaoRegra | null {
+  const rawId = row.id
+  const id = typeof rawId === 'number' ? rawId : Number(rawId)
+  if (!Number.isFinite(id)) return null
+  return {
+    id,
+    matchField: normalizeRuleMatchField(row.match_field),
+    matchValue: normalizeRuleMatchValue(row.match_value),
+    statusDestino: normalizeOptionalStatus(row.status_destino),
+    tipoCaixaDestino: normalizeOptionalTipoCaixa(row.tipo_caixa_destino),
+    tamanhoDestino: normalizeOptionalTamanho(row.tamanho_destino),
+    prefixoDestino: normalizeOptionalText(row.prefixo_destino),
+    active: Boolean(row.active),
+    createdAt: String(row.created_at || ''),
+    updatedAt: String(row.updated_at || ''),
+  }
+}
+
+function isMissingRelationError(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return normalized.includes('does not exist') || normalized.includes('relation') || normalized.includes('42p01')
+}
+
 function normalizeUnknownSizeKey(value: unknown): string {
   return String(value ?? '').trim().toLowerCase()
 }
@@ -211,6 +305,36 @@ function normalizeKnownTargetSize(value: string): string {
   return normalized
 }
 
+function sortedRules(rules: ClassificacaoRegra[]): ClassificacaoRegra[] {
+  return [...rules]
+    .filter((rule) => rule.active && rule.matchValue)
+    .sort((a, b) => {
+      const aScore = a.matchField === 'codigo' ? 0 : 1
+      const bScore = b.matchField === 'codigo' ? 0 : 1
+      if (aScore !== bScore) return aScore - bScore
+      return a.matchValue.localeCompare(b.matchValue, 'pt-BR')
+    })
+}
+
+function applyClassificacaoToPedido(pedido: Pedido, rules: ClassificacaoRegra[]): Pedido {
+  if (!rules.length) return pedido
+  const normalizedPrefixo = normalizeRuleMatchValue(pedido.prefixo)
+  const normalizedCodigo = normalizeRuleMatchValue(pedido.codigo)
+  let next = { ...pedido }
+
+  for (const rule of rules) {
+    const candidate = rule.matchField === 'prefixo' ? normalizedPrefixo : normalizedCodigo
+    if (!candidate || candidate !== rule.matchValue) continue
+
+    if (rule.prefixoDestino) next.prefixo = rule.prefixoDestino
+    if (rule.tamanhoDestino) next.tamanhoCm = rule.tamanhoDestino
+    if (rule.tipoCaixaDestino) next.tipoCaixa = rule.tipoCaixaDestino
+    if (rule.statusDestino) next.status = rule.statusDestino
+  }
+
+  return next
+}
+
 export function usePedidos() {
   const supabase = getSupabaseBrowserClient()
   const supabaseEnabled = Boolean(supabase)
@@ -218,6 +342,8 @@ export function usePedidos() {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [hasMesColumn, setHasMesColumn] = useState<boolean>(true)
+  const [classificacaoRules, setClassificacaoRules] = useState<ClassificacaoRegra[]>([])
+  const [classificacaoRulesTableEnabled, setClassificacaoRulesTableEnabled] = useState<boolean>(true)
   const [loaded, setLoaded] = useState(false)
   const [legacyCount, setLegacyCount] = useState(0)
   const initialized = useRef(false)
@@ -274,11 +400,40 @@ export function usePedidos() {
     setPedidos(sortPedidos(parsed))
   }
 
+  async function fetchClassificacaoRules() {
+    if (!supabase) {
+      setClassificacaoRules([])
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('classificacao_regras')
+      .select('*')
+      .order('match_field', { ascending: true })
+      .order('match_value', { ascending: true })
+
+    if (error) {
+      if (isMissingRelationError(error.message)) {
+        setClassificacaoRulesTableEnabled(false)
+        setClassificacaoRules([])
+        return
+      }
+      throw new Error(error.message)
+    }
+
+    setClassificacaoRulesTableEnabled(true)
+    const parsed = (data || [])
+      .map((row) => parseClassificacaoRegra(row as Record<string, unknown>))
+      .filter((item): item is ClassificacaoRegra => Boolean(item))
+    setClassificacaoRules(parsed)
+  }
+
   async function bootstrap(currentSession: Session | null) {
     setSession(currentSession)
     if (!currentSession?.user) {
       setProfile(null)
       setPedidos([])
+      setClassificacaoRules([])
       setLoaded(true)
       return
     }
@@ -286,7 +441,7 @@ export function usePedidos() {
     const fetchedProfile = await fetchProfile(currentSession.user.id)
     setProfile(fetchedProfile)
     await detectMesColumn()
-    await fetchPedidos()
+    await Promise.all([fetchPedidos(), fetchClassificacaoRules()])
     setLegacyCount(getLegacyRawCount())
     setLoaded(true)
   }
@@ -335,8 +490,13 @@ export function usePedidos() {
     }
     if (!novos.length) return { adicionados: 0, duplicatas: 0 }
 
+    const activeRules = sortedRules(classificacaoRules)
+    const normalizedPedidos = activeRules.length
+      ? novos.map((pedido) => applyClassificacaoToPedido(pedido, activeRules))
+      : novos
+
     let includeMes = hasMesColumn
-    let payload = novos.map((pedido) => toPedidoInsertRow(pedido, userId, includeMes))
+    let payload = normalizedPedidos.map((pedido) => toPedidoInsertRow(pedido, userId, includeMes))
 
     let { data, error } = await supabase
       .from('pedidos')
@@ -353,7 +513,7 @@ export function usePedidos() {
 
       includeMes = false
       setHasMesColumn(false)
-      payload = novos.map((pedido) => toPedidoInsertRow(pedido, userId, includeMes))
+      payload = normalizedPedidos.map((pedido) => toPedidoInsertRow(pedido, userId, includeMes))
       const retry = await supabase
         .from('pedidos')
         .upsert(payload, {
@@ -504,6 +664,138 @@ export function usePedidos() {
     return { atualizados, total: ids.length }
   }
 
+  async function applyClassificacaoRuleToExisting(input: {
+    matchField: ClassificacaoMatchField
+    matchValue: string
+    statusDestino: StatusPedido | null
+    tipoCaixaDestino: TipoCaixa | null
+    tamanhoDestino: string | null
+    prefixoDestino: string | null
+  }): Promise<number> {
+    if (!supabase) return 0
+    const ids = pedidos
+      .filter((pedido) => {
+        if (typeof pedido.id !== 'number') return false
+        const candidate = input.matchField === 'prefixo' ? pedido.prefixo : pedido.codigo
+        return normalizeRuleMatchValue(candidate) === input.matchValue
+      })
+      .map((pedido) => pedido.id as number)
+
+    if (!ids.length) return 0
+
+    const updatePayload: Record<string, unknown> = {}
+    if (input.statusDestino) updatePayload.status = input.statusDestino
+    if (input.tipoCaixaDestino) updatePayload.tipo_caixa = input.tipoCaixaDestino
+    if (input.tamanhoDestino) updatePayload.tamanho_cm = input.tamanhoDestino
+    if (input.prefixoDestino) updatePayload.prefixo = input.prefixoDestino
+
+    if (!Object.keys(updatePayload).length) return 0
+
+    const chunkSize = 500
+    let updated = 0
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const batch = ids.slice(i, i + chunkSize)
+      const { error } = await supabase
+        .from('pedidos')
+        .update(updatePayload)
+        .in('id', batch)
+      if (error) throw new Error(error.message)
+      updated += batch.length
+    }
+    return updated
+  }
+
+  async function saveClassificacaoRegra(input: SaveClassificacaoRegraInput): Promise<SaveClassificacaoRegraReport> {
+    if (!supabase) return { id: 0, atualizados: 0 }
+    if (profile?.role !== 'admin') return { id: 0, atualizados: 0 }
+    if (!classificacaoRulesTableEnabled) {
+      throw new Error('Tabela de regras nao encontrada. Rode o SQL atualizado do schema.')
+    }
+
+    const matchField = normalizeRuleMatchField(input.matchField)
+    const matchValue = normalizeRuleMatchValue(input.matchValue)
+    if (!matchValue) throw new Error('Informe o prefixo/codigo da regra.')
+
+    const payload = {
+      match_field: matchField,
+      match_value: matchValue,
+      status_destino: normalizeOptionalStatus(input.statusDestino),
+      tipo_caixa_destino: normalizeOptionalTipoCaixa(input.tipoCaixaDestino),
+      tamanho_destino: normalizeOptionalTamanho(input.tamanhoDestino),
+      prefixo_destino: normalizeOptionalText(input.prefixoDestino),
+      active: Boolean(input.active),
+      updated_at: new Date().toISOString(),
+      created_by: session?.user?.id || null,
+    }
+
+    let targetId = typeof input.id === 'number' ? input.id : 0
+
+    if (!targetId) {
+      const lookup = await supabase
+        .from('classificacao_regras')
+        .select('id')
+        .eq('match_field', matchField)
+        .eq('match_value', matchValue)
+        .maybeSingle()
+
+      if (lookup.error) {
+        if (isMissingRelationError(lookup.error.message)) {
+          setClassificacaoRulesTableEnabled(false)
+          throw new Error('Tabela de regras nao encontrada. Rode o SQL atualizado do schema.')
+        }
+        throw new Error(lookup.error.message)
+      }
+      targetId = lookup.data?.id ? Number(lookup.data.id) : 0
+    }
+
+    if (targetId) {
+      const { error } = await supabase
+        .from('classificacao_regras')
+        .update(payload)
+        .eq('id', targetId)
+      if (error) throw new Error(error.message)
+    } else {
+      const { data, error } = await supabase
+        .from('classificacao_regras')
+        .insert(payload)
+        .select('id')
+        .single()
+      if (error) throw new Error(error.message)
+      targetId = Number(data.id)
+    }
+
+    let atualizados = 0
+    if (input.applyToExisting) {
+      atualizados = await applyClassificacaoRuleToExisting({
+        matchField,
+        matchValue,
+        statusDestino: normalizeOptionalStatus(input.statusDestino),
+        tipoCaixaDestino: normalizeOptionalTipoCaixa(input.tipoCaixaDestino),
+        tamanhoDestino: normalizeOptionalTamanho(input.tamanhoDestino),
+        prefixoDestino: normalizeOptionalText(input.prefixoDestino),
+      })
+      if (atualizados > 0) await fetchPedidos()
+    }
+
+    await fetchClassificacaoRules()
+    return { id: targetId, atualizados }
+  }
+
+  async function removeClassificacaoRegra(ruleId: number) {
+    if (!supabase) return
+    if (profile?.role !== 'admin') return
+    if (!Number.isFinite(ruleId) || ruleId <= 0) return
+    if (!classificacaoRulesTableEnabled) return
+
+    const { error } = await supabase
+      .from('classificacao_regras')
+      .delete()
+      .eq('id', ruleId)
+
+    if (error) throw new Error(error.message)
+    await fetchClassificacaoRules()
+  }
+
   async function migrateLegacyPedidos(): Promise<MigrationReport> {
     const legacy = getLegacyRaw()
     if (!legacy) return { inseridos: 0, duplicados: 0, falhas: 0, totalLocal: 0 }
@@ -634,12 +926,17 @@ export function usePedidos() {
     role: profile?.role || null,
     isAdmin: profile?.role === 'admin',
     canImport: profile?.role === 'admin' || profile?.role === 'operador',
+    classificacaoRules,
+    classificacaoRulesTableEnabled,
     legacyCount,
     addPedidos,
     clearAll,
     clearByPeriod,
     updateOperadorByDate,
     updateTamanhoNaoIdentificado,
+    saveClassificacaoRegra,
+    removeClassificacaoRegra,
+    refreshClassificacaoRules: fetchClassificacaoRules,
     migrateLegacyPedidos,
     refreshPedidos: fetchPedidos,
     listPendingProfiles,

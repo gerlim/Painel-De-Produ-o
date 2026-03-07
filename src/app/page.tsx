@@ -37,7 +37,16 @@ import {
   tamanhoRotulo,
   type Pedido,
 } from '@/lib/parser'
-import { usePedidos, type ClearPeriod, type ManagedProfile, type PendingProfile, type UserRole } from '@/lib/storage'
+import {
+  usePedidos,
+  type ClassificacaoMatchField,
+  type ClassificacaoRegra,
+  type ClearPeriod,
+  type ManagedProfile,
+  type PendingProfile,
+  type SaveClassificacaoRegraInput,
+  type UserRole,
+} from '@/lib/storage'
 import ThemeModeControl from '@/components/ThemeModeControl'
 
 type TabId = 'resumo' | 'dinamica' | 'produtos' | 'pedidos' | 'operadores'
@@ -112,6 +121,10 @@ function chartSerieLabel(name: string) {
   if (normalized.includes('caix')) return 'Caixas'
   if (normalized.includes('pedid')) return 'Pedidos'
   return name
+}
+
+function matchFieldLabel(field: ClassificacaoMatchField) {
+  return field === 'codigo' ? 'Codigo' : 'Prefixo'
 }
 
 function toCsvValue(value: unknown) {
@@ -336,6 +349,10 @@ function AdminToolsModal({
   onClearPeriod,
   onUpdateOperador,
   onUpdateUnknownSize,
+  classificacaoRules,
+  classificacaoRulesTableEnabled,
+  onSaveClassificacaoRegra,
+  onRemoveClassificacaoRegra,
   operadores,
   pedidos,
   pendingProfiles,
@@ -354,6 +371,10 @@ function AdminToolsModal({
   onClearPeriod: (dateIso: string, period: ClearPeriod) => Promise<void>
   onUpdateOperador: (dateIso: string, operadorOrigem: string, operadorDestino: string) => Promise<void>
   onUpdateUnknownSize: (tamanhoOrigem: string, tamanhoDestino: string) => Promise<void>
+  classificacaoRules: ClassificacaoRegra[]
+  classificacaoRulesTableEnabled: boolean
+  onSaveClassificacaoRegra: (input: SaveClassificacaoRegraInput) => Promise<{ atualizados: number }>
+  onRemoveClassificacaoRegra: (ruleId: number) => Promise<void>
   operadores: string[]
   pedidos: Pedido[]
   pendingProfiles: PendingProfile[]
@@ -381,6 +402,17 @@ function AdminToolsModal({
   const [managedStatusFilter, setManagedStatusFilter] = useState<'todos' | 'ativos' | 'inativos'>('todos')
   const [operatorCandidateId, setOperatorCandidateId] = useState('')
   const [unknownTargets, setUnknownTargets] = useState<Record<string, string>>({})
+  const [ruleEditingId, setRuleEditingId] = useState<number | null>(null)
+  const [ruleMatchField, setRuleMatchField] = useState<ClassificacaoMatchField>('prefixo')
+  const [ruleMatchValue, setRuleMatchValue] = useState('')
+  const [ruleStatusDestino, setRuleStatusDestino] = useState<'AUTO' | 'SERVICO' | 'TESTE'>('AUTO')
+  const [ruleTipoCaixaDestino, setRuleTipoCaixaDestino] = useState<'AUTO' | 'Oitavada' | 'Maleta' | 'Quadrada' | 'Flexo' | 'Outro'>('AUTO')
+  const [ruleTamanhoDestino, setRuleTamanhoDestino] = useState('')
+  const [rulePrefixoDestino, setRulePrefixoDestino] = useState('')
+  const [ruleActive, setRuleActive] = useState(true)
+  const [ruleApplyToExisting, setRuleApplyToExisting] = useState(true)
+  const [savingRule, setSavingRule] = useState(false)
+  const [removingRuleId, setRemovingRuleId] = useState(0)
   const [loadingClear, setLoadingClear] = useState(false)
   const [loadingOp, setLoadingOp] = useState(false)
   const [loadingUnknownKey, setLoadingUnknownKey] = useState('')
@@ -481,6 +513,82 @@ function AdminToolsModal({
     }
   }
 
+  function resetRuleForm() {
+    setRuleEditingId(null)
+    setRuleMatchField('prefixo')
+    setRuleMatchValue('')
+    setRuleStatusDestino('AUTO')
+    setRuleTipoCaixaDestino('AUTO')
+    setRuleTamanhoDestino('')
+    setRulePrefixoDestino('')
+    setRuleActive(true)
+    setRuleApplyToExisting(true)
+  }
+
+  function loadRuleToForm(rule: ClassificacaoRegra) {
+    setRuleEditingId(rule.id)
+    setRuleMatchField(rule.matchField)
+    setRuleMatchValue(rule.matchValue)
+    setRuleStatusDestino(rule.statusDestino || 'AUTO')
+    setRuleTipoCaixaDestino(rule.tipoCaixaDestino || 'AUTO')
+    setRuleTamanhoDestino(rule.tamanhoDestino || '')
+    setRulePrefixoDestino(rule.prefixoDestino || '')
+    setRuleActive(rule.active)
+    setRuleApplyToExisting(true)
+  }
+
+  function prefFillRuleFromItem(field: ClassificacaoMatchField, value: string, status: 'AUTO' | 'SERVICO' | 'TESTE' = 'AUTO') {
+    setRuleEditingId(null)
+    setRuleMatchField(field)
+    setRuleMatchValue(value)
+    setRuleStatusDestino(status)
+    setRuleApplyToExisting(true)
+  }
+
+  async function handleSaveRule() {
+    setError('')
+    if (!ruleMatchValue.trim()) {
+      setError('Informe o valor da regra (prefixo ou codigo).')
+      return
+    }
+
+    setSavingRule(true)
+    try {
+      const report = await onSaveClassificacaoRegra({
+        id: ruleEditingId || undefined,
+        matchField: ruleMatchField,
+        matchValue: ruleMatchValue,
+        statusDestino: ruleStatusDestino === 'AUTO' ? null : ruleStatusDestino,
+        tipoCaixaDestino: ruleTipoCaixaDestino === 'AUTO' ? null : ruleTipoCaixaDestino,
+        tamanhoDestino: ruleTamanhoDestino.trim() || null,
+        prefixoDestino: rulePrefixoDestino.trim() || null,
+        active: ruleActive,
+        applyToExisting: ruleApplyToExisting,
+      })
+      if (report.atualizados > 0) {
+        setError('')
+      }
+      resetRuleForm()
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setSavingRule(false)
+    }
+  }
+
+  async function handleRemoveRule(ruleId: number) {
+    setError('')
+    setRemovingRuleId(ruleId)
+    try {
+      await onRemoveClassificacaoRegra(ruleId)
+      if (ruleEditingId === ruleId) resetRuleForm()
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setRemovingRuleId(0)
+    }
+  }
+
   const pendingSearchTerm = pendingSearch.trim().toLowerCase()
   const managedSearchTerm = managedSearch.trim().toLowerCase()
 
@@ -531,6 +639,53 @@ function AdminToolsModal({
   }, {})
 
   const unknownSizes = Object.values(unknownSizesMap).sort((a, b) => b.total - a.total || a.raw.localeCompare(b.raw, 'pt-BR'))
+  const unknownModelsMap = pedidos.reduce<Record<string, {
+    key: string
+    prefixo: string
+    codigo: string
+    total: number
+    servicos: number
+    testes: number
+    tipoOutro: number
+    tamanhoNaoIdentificado: number
+  }>>((acc, pedido) => {
+    const tipoOutro = pedido.tipoCaixa === 'Outro'
+    const tamanhoNaoIdentificado = isUnknownSizeValue(pedido.tamanhoCm)
+    if (!tipoOutro && !tamanhoNaoIdentificado) return acc
+
+    const key = `${pedido.prefixo.trim().toLowerCase()}|${pedido.codigo.trim().toLowerCase()}`
+    const existing = acc[key]
+    if (existing) {
+      existing.total += 1
+      if (isStatusServico(pedido.status)) existing.servicos += 1
+      if (isStatusTeste(pedido.status)) existing.testes += 1
+      if (tipoOutro) existing.tipoOutro += 1
+      if (tamanhoNaoIdentificado) existing.tamanhoNaoIdentificado += 1
+      return acc
+    }
+
+    acc[key] = {
+      key,
+      prefixo: pedido.prefixo.trim(),
+      codigo: pedido.codigo.trim(),
+      total: 1,
+      servicos: isStatusServico(pedido.status) ? 1 : 0,
+      testes: isStatusTeste(pedido.status) ? 1 : 0,
+      tipoOutro: tipoOutro ? 1 : 0,
+      tamanhoNaoIdentificado: tamanhoNaoIdentificado ? 1 : 0,
+    }
+    return acc
+  }, {})
+
+  const unknownModels = Object.values(unknownModelsMap)
+    .sort((a, b) => b.total - a.total || a.key.localeCompare(b.key, 'pt-BR'))
+    .slice(0, 40)
+
+  const sortedRules = [...classificacaoRules].sort((a, b) => {
+    const fieldCmp = a.matchField.localeCompare(b.matchField, 'pt-BR')
+    if (fieldCmp !== 0) return fieldCmp
+    return a.matchValue.localeCompare(b.matchValue, 'pt-BR')
+  })
 
   return (
     <div
@@ -655,6 +810,199 @@ function AdminToolsModal({
               >
                 {loadingUnknownKey === item.key ? 'Aplicando...' : 'Corrigir'}
               </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="card" style={{ padding: 12, marginTop: 10 }}>
+          <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 8 }}>Modelos/prefixos para classificar</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
+            Itens com tipo <code>Outro</code> ou tamanho nao identificado. Use os atalhos para preencher a regra.
+          </div>
+
+          {unknownModels.length === 0 && (
+            <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Nenhum item pendente de classificacao.</div>
+          )}
+
+          {unknownModels.map((item) => (
+            <div
+              key={item.key}
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: 10,
+                marginTop: 8,
+                display: 'grid',
+                gap: 8,
+              }}
+            >
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                  {codigoComPrefixo(item.prefixo, item.codigo)}
+                </div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                  {fmt(item.total)} registro(s) - {fmt(item.servicos)} servico(s) - {fmt(item.testes)} teste(s)
+                </div>
+              </div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                Tipo Outro: {fmt(item.tipoOutro)} | Tamanho nao identificado: {fmt(item.tamanhoNaoIdentificado)}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => prefFillRuleFromItem('prefixo', item.prefixo)}
+                  disabled={!item.prefixo}
+                  style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--ink-700)', color: 'var(--text-primary)', padding: '6px 10px', cursor: 'pointer' }}
+                >
+                  Usar prefixo {item.prefixo || '-'}
+                </button>
+                <button
+                  onClick={() => prefFillRuleFromItem('codigo', item.codigo)}
+                  disabled={!item.codigo}
+                  style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--ink-700)', color: 'var(--text-primary)', padding: '6px 10px', cursor: 'pointer' }}
+                >
+                  Usar codigo {item.codigo || '-'}
+                </button>
+                <button
+                  onClick={() => prefFillRuleFromItem('codigo', item.codigo, 'TESTE')}
+                  disabled={!item.codigo}
+                  style={{ border: 'none', borderRadius: 8, background: 'rgba(245,158,11,0.22)', color: '#f59e0b', padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}
+                >
+                  Marcar como TESTE
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="card" style={{ padding: 12, marginTop: 10 }}>
+          <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 8 }}>Regras de classificacao (prefixo/codigo)</div>
+          {!classificacaoRulesTableEnabled && (
+            <div style={{ color: '#fb7185', fontSize: 12, marginBottom: 8 }}>
+              A tabela <code>classificacao_regras</code> ainda nao existe no Supabase. Rode o SQL atualizado para habilitar cadastro/edicao.
+            </div>
+          )}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8, marginBottom: 8 }}>
+            <select
+              value={ruleMatchField}
+              onChange={(event) => setRuleMatchField(event.target.value as ClassificacaoMatchField)}
+              style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }}
+            >
+              <option value="prefixo">Prefixo</option>
+              <option value="codigo">Codigo</option>
+            </select>
+            <input
+              value={ruleMatchValue}
+              onChange={(event) => setRuleMatchValue(event.target.value)}
+              placeholder={ruleMatchField === 'prefixo' ? 'Valor do prefixo (ex.: 57)' : 'Valor do codigo (ex.: 958)'}
+              style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }}
+            />
+            <select
+              value={ruleStatusDestino}
+              onChange={(event) => setRuleStatusDestino(event.target.value as 'AUTO' | 'SERVICO' | 'TESTE')}
+              style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }}
+            >
+              <option value="AUTO">Status: manter</option>
+              <option value="SERVICO">Status: SERVICO</option>
+              <option value="TESTE">Status: TESTE</option>
+            </select>
+            <select
+              value={ruleTipoCaixaDestino}
+              onChange={(event) => setRuleTipoCaixaDestino(event.target.value as 'AUTO' | 'Oitavada' | 'Maleta' | 'Quadrada' | 'Flexo' | 'Outro')}
+              style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }}
+            >
+              <option value="AUTO">Tipo: manter</option>
+              <option value="Oitavada">Oitavada</option>
+              <option value="Maleta">Maleta</option>
+              <option value="Quadrada">Quadrada</option>
+              <option value="Flexo">Flexo</option>
+              <option value="Outro">Outro</option>
+            </select>
+            <input
+              value={rulePrefixoDestino}
+              onChange={(event) => setRulePrefixoDestino(event.target.value)}
+              placeholder="Novo prefixo (opcional)"
+              style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }}
+            />
+            <input
+              value={ruleTamanhoDestino}
+              onChange={(event) => setRuleTamanhoDestino(event.target.value)}
+              placeholder="Novo tamanho (35, 35x4...) opcional"
+              style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }}
+            />
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 8 }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+              <input type="checkbox" checked={ruleActive} onChange={(event) => setRuleActive(event.target.checked)} />
+              Regra ativa
+            </label>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)', fontSize: 12 }}>
+              <input type="checkbox" checked={ruleApplyToExisting} onChange={(event) => setRuleApplyToExisting(event.target.checked)} />
+              Aplicar tambem nos dados ja importados
+            </label>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+            <button
+              onClick={handleSaveRule}
+              disabled={savingRule || !classificacaoRulesTableEnabled}
+              style={{
+                border: 'none',
+                borderRadius: 8,
+                background: !classificacaoRulesTableEnabled ? 'var(--ink-700)' : 'var(--cyan)',
+                color: !classificacaoRulesTableEnabled ? 'var(--text-muted)' : '#00131b',
+                fontWeight: 700,
+                padding: '8px 12px',
+                cursor: !classificacaoRulesTableEnabled ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {savingRule ? 'Salvando...' : ruleEditingId ? 'Atualizar regra' : 'Adicionar regra'}
+            </button>
+            {ruleEditingId && (
+              <button
+                onClick={resetRuleForm}
+                style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--ink-700)', color: 'var(--text-primary)', padding: '8px 12px', cursor: 'pointer' }}
+              >
+                Cancelar edicao
+              </button>
+            )}
+          </div>
+
+          {sortedRules.length === 0 && (
+            <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Nenhuma regra cadastrada.</div>
+          )}
+
+          {sortedRules.map((rule) => (
+            <div
+              key={rule.id}
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: 10,
+                marginTop: 8,
+                display: 'grid',
+                gap: 8,
+              }}
+            >
+              <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                {matchFieldLabel(rule.matchField)}: <code>{rule.matchValue}</code> {rule.active ? '' : '(inativa)'}
+              </div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                Status: {rule.statusDestino || 'manter'} | Tipo: {rule.tipoCaixaDestino || 'manter'} | Tamanho: {rule.tamanhoDestino || 'manter'} | Prefixo novo: {rule.prefixoDestino || 'manter'}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => loadRuleToForm(rule)}
+                  style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--ink-700)', color: 'var(--text-primary)', padding: '6px 10px', cursor: 'pointer' }}
+                >
+                  Editar
+                </button>
+                <button
+                  onClick={() => handleRemoveRule(rule.id)}
+                  disabled={removingRuleId === rule.id}
+                  style={{ border: 'none', borderRadius: 8, background: 'rgba(244,63,94,0.18)', color: '#fb7185', padding: '6px 10px', cursor: 'pointer', fontWeight: 700 }}
+                >
+                  {removingRuleId === rule.id ? 'Excluindo...' : 'Excluir'}
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -1371,6 +1719,10 @@ export default function App() {
     approveProfile,
     updateProfileAccess,
     updateTamanhoNaoIdentificado,
+    classificacaoRules,
+    classificacaoRulesTableEnabled,
+    saveClassificacaoRegra,
+    removeClassificacaoRegra,
   } = usePedidos()
   const [tab, setTab] = useState<TabId>('resumo')
   const [modal, setModal] = useState(false)
@@ -1475,6 +1827,21 @@ export default function App() {
       return
     }
     showToast(`Tamanho corrigido em ${report.atualizados} registro(s)`)
+  }
+
+  async function onSaveClassificacaoRegra(input: SaveClassificacaoRegraInput) {
+    const report = await saveClassificacaoRegra(input)
+    if (report.atualizados > 0) {
+      showToast(`Regra salva e aplicada em ${report.atualizados} registro(s)`)
+      return report
+    }
+    showToast('Regra salva com sucesso')
+    return report
+  }
+
+  async function onRemoveClassificacaoRegra(ruleId: number) {
+    await removeClassificacaoRegra(ruleId)
+    showToast('Regra removida com sucesso')
   }
 
   async function onApprovePendingProfile(profileId: string, role: UserRole) {
@@ -1623,6 +1990,10 @@ export default function App() {
           onClearPeriod={onClearPeriod}
           onUpdateOperador={onUpdateOperador}
           onUpdateUnknownSize={onUpdateUnknownSize}
+          classificacaoRules={classificacaoRules}
+          classificacaoRulesTableEnabled={classificacaoRulesTableEnabled}
+          onSaveClassificacaoRegra={onSaveClassificacaoRegra}
+          onRemoveClassificacaoRegra={onRemoveClassificacaoRegra}
           operadores={operadores}
           pedidos={pedidos}
           pendingProfiles={pendingProfiles}
