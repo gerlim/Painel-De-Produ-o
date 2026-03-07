@@ -71,6 +71,12 @@ Aplicacao local: `http://localhost:3000`
 - `npm run apk:sync` - sincronizar projeto Capacitor Android
 - `npm run apk:build:debug` - gerar APK debug
 
+## Versionamento
+
+- versao atual: `v1.0.0`
+- arquivo de historico: `CHANGELOG.md`
+- padrao adotado: SemVer (`MAJOR.MINOR.PATCH`)
+
 ## Deploy (Vercel)
 
 Variaveis obrigatorias no projeto:
