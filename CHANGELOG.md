@@ -10,6 +10,12 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.0.4] - 2026-03-07
+
+### Fixed
+- Removido o destaque de fundo (cursor) no grafico "Ranking de Operadores" ao tocar.
+- Corrigida rotulagem do tooltip para exibir "Caixas" e "Pedidos" corretamente.
+
 ## [1.0.3] - 2026-03-07
 
 ### Added

@@ -107,6 +107,13 @@ function statusColors(active: boolean) {
   return { color: '#fb7185', bg: 'rgba(244,63,94,0.14)', border: 'rgba(244,63,94,0.32)' }
 }
 
+function chartSerieLabel(name: string) {
+  const normalized = name.toLowerCase()
+  if (normalized.includes('caix')) return 'Caixas'
+  if (normalized.includes('pedid')) return 'Pedidos'
+  return name
+}
+
 function toCsvValue(value: unknown) {
   if (value == null) return '""'
   return `"${String(value).replace(/"/g, '""')}"`
@@ -1118,7 +1125,8 @@ function ResumoTab({ pedidos, isAdmin }: { pedidos: Pedido[]; isAdmin: boolean }
               contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
               labelStyle={CHART_TOOLTIP_LABEL_STYLE}
               itemStyle={CHART_TOOLTIP_ITEM_STYLE}
-              formatter={(value: number, name: string) => [fmt(Number(value)), name === 'caixas' ? 'Caixas' : 'Pedidos']}
+              cursor={false}
+              formatter={(value: number, name: string) => [fmt(Number(value)), chartSerieLabel(name)]}
             />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <Bar dataKey="caixas" fill="#00d4ff" radius={[0, 6, 6, 0]} name="Caixas" />
