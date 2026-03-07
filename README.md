@@ -15,6 +15,7 @@ Principais recursos:
 - KPIs com separacao correta entre servicos e testes
 - exportacao CSV da listagem filtrada
 - ferramentas administrativas (gestao de acesso, limpeza por periodo, ajustes de operador, tamanhos nao identificados e regras de classificacao por prefixo/codigo)
+- comandos remotos via WhatsApp Cloud API (admin)
 
 ## Stack
 
@@ -43,6 +44,12 @@ npm install
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://SEU_PROJECT_ID.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=SUA_CHAVE_ANON
+SUPABASE_SERVICE_ROLE_KEY=SUA_SERVICE_ROLE_KEY
+WHATSAPP_VERIFY_TOKEN=TOKEN_DE_VERIFICACAO_WEBHOOK
+WHATSAPP_API_TOKEN=TOKEN_PERMANENTE_WHATSAPP
+WHATSAPP_PHONE_NUMBER_ID=PHONE_NUMBER_ID_DO_WHATSAPP
+WHATSAPP_COMMAND_SECRET=SENHA_DOS_COMANDOS
+WHATSAPP_ALLOWED_NUMBERS=5511999999999,5511888888888
 ```
 
 3. Aplique o schema SQL:
@@ -73,7 +80,7 @@ Aplicacao local: `http://localhost:3000`
 
 ## Versionamento
 
-- versao atual: `v1.0.5`
+- versao atual: `v1.0.6`
 - arquivo de historico: `CHANGELOG.md`
 - padrao adotado: SemVer (`MAJOR.MINOR.PATCH`)
 
@@ -83,6 +90,12 @@ Variaveis obrigatorias no projeto:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (somente backend/webhook)
+- `WHATSAPP_VERIFY_TOKEN`
+- `WHATSAPP_API_TOKEN`
+- `WHATSAPP_PHONE_NUMBER_ID`
+- `WHATSAPP_COMMAND_SECRET`
+- `WHATSAPP_ALLOWED_NUMBERS`
 
 Comandos:
 
@@ -90,6 +103,31 @@ Comandos:
 vercel deploy -y
 vercel deploy --prod -y
 ```
+
+## Comandos remotos por WhatsApp
+
+Webhook no app:
+
+- `GET/POST /api/whatsapp/webhook`
+
+Formato da mensagem:
+
+- `/cmd <senha> <comando>`
+
+Comandos suportados:
+
+- `STATUS`
+- `RESUMO HOJE`
+- `RESUMO MES [AAAA-MM]`
+- `PENDENTES`
+- `APROVAR <email> [admin|operador|visualizador]`
+- `PAPEL <email> <admin|operador|visualizador>`
+- `ATIVAR <email>`
+- `DESATIVAR <email>`
+
+Exemplo:
+
+- `/cmd minhaSenha STATUS`
 
 ## APK Android (uso pessoal)
 

@@ -10,6 +10,17 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.0.6] - 2026-03-07
+
+### Added
+- Webhook `POST/GET /api/whatsapp/webhook` para integrar comandos remotos via WhatsApp Cloud API.
+- Motor de comandos com controle por senha e lista de numeros autorizados.
+- Comandos operacionais: `STATUS`, `RESUMO HOJE`, `RESUMO MES`, `PENDENTES`, `APROVAR`, `PAPEL`, `ATIVAR`, `DESATIVAR`.
+
+### Infra
+- Cliente Supabase server-side com `SUPABASE_SERVICE_ROLE_KEY` para operacoes administrativas do webhook.
+- Novas variaveis de ambiente documentadas para WhatsApp e service role.
+
 ## [1.0.5] - 2026-03-07
 
 ### Added
