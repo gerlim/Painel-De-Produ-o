@@ -80,7 +80,7 @@ Aplicacao local: `http://localhost:3000`
 
 ## Versionamento
 
-- versao atual: `v1.0.6`
+- versao atual: `v1.0.7`
 - arquivo de historico: `CHANGELOG.md`
 - padrao adotado: SemVer (`MAJOR.MINOR.PATCH`)
 

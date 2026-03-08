@@ -8,6 +8,20 @@ import ThemeModeControl from '@/components/ThemeModeControl'
 
 type AuthMode = 'login' | 'signup'
 
+function authMessage(message: string) {
+  const normalized = message.toLowerCase()
+  if (normalized.includes('email not confirmed')) {
+    return 'Email ainda nao confirmado. Abra a mensagem enviada pelo Supabase e confirme o cadastro antes de entrar.'
+  }
+  if (normalized.includes('invalid login credentials')) {
+    return 'Email ou senha invalidos.'
+  }
+  if (normalized.includes('email rate limit exceeded')) {
+    return 'Muitas tentativas em pouco tempo. Aguarde alguns minutos e tente de novo.'
+  }
+  return message
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const supabase = getSupabaseBrowserClient()
@@ -16,9 +30,11 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [resendingConfirmation, setResendingConfirmation] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const isSignup = mode === 'signup'
+  const shouldShowResendConfirmation = !isSignup && error.toLowerCase().includes('nao confirmado')
 
   useEffect(() => {
     if (!supabase) return
@@ -54,7 +70,7 @@ export default function LoginPage() {
       })
 
       if (authError) {
-        setError(authError.message)
+        setError(authMessage(authError.message))
         setLoading(false)
         return
       }
@@ -63,7 +79,7 @@ export default function LoginPage() {
         await supabase.auth.signOut()
       }
 
-      setSuccess('Solicitacao enviada. Aguarde aprovacao do administrador para acessar o app.')
+      setSuccess('Solicitacao enviada. Confirme o email recebido e depois aguarde aprovacao do administrador para acessar o app.')
       setPassword('')
       setLoading(false)
       return
@@ -75,12 +91,45 @@ export default function LoginPage() {
     })
 
     if (authError) {
-      setError(authError.message)
+      setError(authMessage(authError.message))
       setLoading(false)
       return
     }
 
     router.replace('/')
+  }
+
+  async function onResendConfirmation() {
+    if (!supabase) {
+      setError('Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY para habilitar login.')
+      return
+    }
+
+    if (!email.trim()) {
+      setError('Informe o email para reenviar a confirmacao.')
+      return
+    }
+
+    setResendingConfirmation(true)
+    setError('')
+    setSuccess('')
+
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim(),
+      options: {
+        emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined,
+      },
+    })
+
+    if (resendError) {
+      setError(authMessage(resendError.message))
+      setResendingConfirmation(false)
+      return
+    }
+
+    setSuccess('Email de confirmacao reenviado. Verifique a caixa de entrada e o spam.')
+    setResendingConfirmation(false)
   }
 
   return (
@@ -217,6 +266,26 @@ export default function LoginPage() {
           >
             {error}
           </div>
+        )}
+
+        {shouldShowResendConfirmation && (
+          <button
+            type="button"
+            onClick={onResendConfirmation}
+            disabled={resendingConfirmation}
+            style={{
+              width: '100%',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              padding: '10px 12px',
+              marginBottom: 12,
+              background: 'var(--ink-700)',
+              color: 'var(--text-primary)',
+              cursor: resendingConfirmation ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {resendingConfirmation ? 'Reenviando confirmacao...' : 'Reenviar email de confirmacao'}
+          </button>
         )}
 
         {success && (

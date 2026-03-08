@@ -10,6 +10,15 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.0.7] - 2026-03-08
+
+### Changed
+- Tela de login passou a traduzir erros comuns do Supabase Auth para mensagens mais claras em portugues.
+- Fluxo de cadastro agora informa explicitamente a necessidade de confirmar o email antes da aprovacao do administrador.
+
+### Added
+- Botao para reenviar email de confirmacao quando o login falhar por conta ainda nao confirmada.
+
 ## [1.0.6] - 2026-03-07
 
 ### Added
