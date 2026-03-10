@@ -10,6 +10,12 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.0.8] - 2026-03-10
+
+### Changed
+- Removidos do painel os indicadores, colunas e resumos relacionados a tinta.
+- Exportacao CSV de pedidos atualizada para nao incluir mais colunas de tinta e custo de tinta.
+
 ## [1.0.7] - 2026-03-08
 
 ### Changed

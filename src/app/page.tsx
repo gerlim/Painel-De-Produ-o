@@ -172,12 +172,6 @@ function downloadCsv(rows: Pedido[]) {
     'Chapas Impressas',
     'Caixas Produzidas',
     'Area (m2)',
-    'C (ml)',
-    'M (ml)',
-    'Y (ml)',
-    'K (ml)',
-    'Tinta Total (ml)',
-    'Custo Tinta (R$)',
   ]
 
   const lines = rows.map((pedido) =>
@@ -197,12 +191,6 @@ function downloadCsv(rows: Pedido[]) {
       pedido.chapasImpressas,
       pedido.caixasProduzidas,
       pedido.areaMq.toFixed(6),
-      pedido.cMl.toFixed(2),
-      pedido.mMl.toFixed(2),
-      pedido.yMl.toFixed(2),
-      pedido.kMl.toFixed(2),
-      pedido.tintaTotal.toFixed(2),
-      pedido.custoTinta.toFixed(2),
     ]
       .map(toCsvValue)
       .join(';'),
@@ -1367,7 +1355,7 @@ function ResumoTab({ pedidos, isAdmin }: { pedidos: Pedido[]; isAdmin: boolean }
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
         <MetricCard title="Caixas de Servico" value={fmt(k.totalCaixas)} hint={`${fmt(k.totalPedidos)} pedidos validos`} icon={<TrendingUp size={14} />} />
         <MetricCard title="Chapas" value={fmt(k.totalChapas)} hint={`Media ${fmt(k.mediaCaixasPorPedido)} cx/pedido`} icon={<Factory size={14} />} />
-        <MetricCard title="Tinta Total" value={`${fmt(Math.round(k.totalTintaMl))} ml`} hint={`${k.totalAreaMq.toFixed(2)} m2 de area`} icon={<span style={{ fontWeight: 700 }}>C+M+Y+K</span>} />
+        <MetricCard title="Area Produzida" value={`${k.totalAreaMq.toFixed(2)} m2`} hint="Area total registrada" icon={<span style={{ fontWeight: 700 }}>m2</span>} />
         <MetricCard
           title="Tendencia do Ultimo Dia"
           value={`${tendenciaCaixas >= 0 ? '+' : ''}${tendenciaCaixas.toFixed(1)}%`}
@@ -1521,14 +1509,13 @@ function DinamicaTab({ pedidos }: { pedidos: Pedido[] }) {
 function ProdutosTab({ pedidos }: { pedidos: Pedido[] }) {
   const [busca, setBusca] = useState('')
   const deferred = useDeferredValue(busca)
-  const map: Record<string, { codigo: string; nome: string; tipo: string; chapas: number; caixas: number; dias: Set<string>; operadores: Set<string>; tinta: number }> = {}
+  const map: Record<string, { codigo: string; nome: string; tipo: string; chapas: number; caixas: number; dias: Set<string>; operadores: Set<string> }> = {}
   soServicos(pedidos).forEach((p) => {
     const codigo = codigoComPrefixo(p.prefixo, p.codigo)
-    if (!map[codigo]) map[codigo] = { codigo, nome: p.nomeCliente, tipo: p.tipoCaixa, chapas: 0, caixas: 0, dias: new Set(), operadores: new Set(), tinta: 0 }
+    if (!map[codigo]) map[codigo] = { codigo, nome: p.nomeCliente, tipo: p.tipoCaixa, chapas: 0, caixas: 0, dias: new Set(), operadores: new Set() }
     const r = map[codigo]
     r.chapas += p.chapasImpressas
     r.caixas += p.caixasProduzidas
-    r.tinta += p.tintaTotal
     r.dias.add(p.data)
     r.operadores.add(p.operador)
   })
@@ -1559,7 +1546,6 @@ function PedidosTab({ pedidos }: { pedidos: Pedido[] }) {
   const totalServicos = pedidos.filter((p) => isStatusServico(p.status)).length
   const totalTestes = pedidos.filter((p) => isStatusTeste(p.status)).length
   const caixasFiltro = rows.reduce((acc, item) => acc + item.caixasProduzidas, 0)
-  const tintaFiltro = rows.reduce((acc, item) => acc + item.tintaTotal, 0)
   if (!pedidos.length) return <div style={{ padding: 20, color: 'var(--text-muted)' }}>Importe dados para ver pedidos.</div>
   return (
     <div style={{ padding: 14, paddingBottom: 24 }}>
@@ -1572,10 +1558,6 @@ function PedidosTab({ pedidos }: { pedidos: Pedido[] }) {
           <div>
             <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>Caixas no filtro</div>
             <div className="big-number" style={{ fontSize: 24 }}>{fmt(caixasFiltro)}</div>
-          </div>
-          <div>
-            <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>Tinta no filtro</div>
-            <div className="big-number" style={{ fontSize: 24 }}>{fmt(Math.round(tintaFiltro))} ml</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div style={{ color: 'var(--text-muted)', fontSize: 11, marginBottom: 4 }}>Base total: {fmt(totalServicos)} servicos / {fmt(totalTestes)} testes</div>
@@ -1594,9 +1576,9 @@ function PedidosTab({ pedidos }: { pedidos: Pedido[] }) {
       </div>
       <TableCard title={`Pedidos (${rows.length})`}>
         <div className="mobile-h-scroll">
-          <table className="data-table" style={{ minWidth: 980 }}>
-            <thead><tr><th>Data</th><th>Operador</th><th>Status</th><th>Cliente</th><th>Prefixo + Codigo</th><th>Tam</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Imgs</th><th style={{ textAlign: 'right' }}>Chapas</th><th style={{ textAlign: 'right' }}>Caixas</th><th style={{ textAlign: 'right' }}>Tinta(ml)</th></tr></thead>
-            <tbody>{rows.map((p, i) => <tr key={`${p.orderID}-${i}`}><td>{p.data}</td><td>{p.operador}</td><td>{formatStatusLabel(p.status)}</td><td>{p.nomeCliente}</td><td>{codigoComPrefixo(p.prefixo, p.codigo)}</td><td>{tamanhoRotulo(p.tamanhoCm)}</td><td>{p.tipoCaixa}</td><td style={{ textAlign: 'right' }}>{fmt(p.qtdImagens)}</td><td style={{ textAlign: 'right' }}>{fmt(p.chapasImpressas)}</td><td style={{ textAlign: 'right' }}>{fmt(p.caixasProduzidas)}</td><td style={{ textAlign: 'right' }}>{fmt(Math.round(p.tintaTotal))}</td></tr>)}</tbody>
+          <table className="data-table" style={{ minWidth: 900 }}>
+            <thead><tr><th>Data</th><th>Operador</th><th>Status</th><th>Cliente</th><th>Prefixo + Codigo</th><th>Tam</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Imgs</th><th style={{ textAlign: 'right' }}>Chapas</th><th style={{ textAlign: 'right' }}>Caixas</th></tr></thead>
+            <tbody>{rows.map((p, i) => <tr key={`${p.orderID}-${i}`}><td>{p.data}</td><td>{p.operador}</td><td>{formatStatusLabel(p.status)}</td><td>{p.nomeCliente}</td><td>{codigoComPrefixo(p.prefixo, p.codigo)}</td><td>{tamanhoRotulo(p.tamanhoCm)}</td><td>{p.tipoCaixa}</td><td style={{ textAlign: 'right' }}>{fmt(p.qtdImagens)}</td><td style={{ textAlign: 'right' }}>{fmt(p.chapasImpressas)}</td><td style={{ textAlign: 'right' }}>{fmt(p.caixasProduzidas)}</td></tr>)}</tbody>
           </table>
         </div>
       </TableCard>
@@ -1677,21 +1659,21 @@ function OperadoresTab({ pedidos }: { pedidos: Pedido[] }) {
 
       <TableCard title="KPIs por Operador + Maquina Geral">
         <table className="data-table">
-          <thead><tr><th>Operador</th><th style={{ textAlign: 'right' }}>Pedidos</th><th style={{ textAlign: 'right' }}>Media Serv/Dia</th><th style={{ textAlign: 'right' }}>Chapas</th><th style={{ textAlign: 'right' }}>Caixas</th><th style={{ textAlign: 'right' }}>Media Cx/Ped</th><th style={{ textAlign: 'right' }}>Tinta Total</th><th style={{ textAlign: 'right' }}>Media Tinta/Ped</th><th>Tam Mais Prod</th></tr></thead>
-          <tbody>{[...ops, maquina].map((o) => <tr key={o.operador}><td>{o.operador}</td><td style={{ textAlign: 'right' }}>{fmt(o.pedidos)}</td><td style={{ textAlign: 'right' }}>{o.mediaServicosPorDia.toFixed(1)}</td><td style={{ textAlign: 'right' }}>{fmt(o.chapas)}</td><td style={{ textAlign: 'right' }}>{fmt(o.caixas)}</td><td style={{ textAlign: 'right' }}>{o.mediaCaixasPorPedido.toFixed(1)}</td><td style={{ textAlign: 'right' }}>{fmt(Math.round(o.tinta))}</td><td style={{ textAlign: 'right' }}>{o.mediaTintaPorPedido.toFixed(1)}</td><td>{o.tamanhoMaisProduzido}</td></tr>)}</tbody>
+          <thead><tr><th>Operador</th><th style={{ textAlign: 'right' }}>Pedidos</th><th style={{ textAlign: 'right' }}>Media Serv/Dia</th><th style={{ textAlign: 'right' }}>Chapas</th><th style={{ textAlign: 'right' }}>Caixas</th><th style={{ textAlign: 'right' }}>Media Cx/Ped</th><th>Tam Mais Prod</th></tr></thead>
+          <tbody>{[...ops, maquina].map((o) => <tr key={o.operador}><td>{o.operador}</td><td style={{ textAlign: 'right' }}>{fmt(o.pedidos)}</td><td style={{ textAlign: 'right' }}>{o.mediaServicosPorDia.toFixed(1)}</td><td style={{ textAlign: 'right' }}>{fmt(o.chapas)}</td><td style={{ textAlign: 'right' }}>{fmt(o.caixas)}</td><td style={{ textAlign: 'right' }}>{o.mediaCaixasPorPedido.toFixed(1)}</td><td>{o.tamanhoMaisProduzido}</td></tr>)}</tbody>
         </table>
       </TableCard>
       <TableCard title="Resumo por Dia e Operador">
         <table className="data-table">
-          <thead><tr><th>Data</th><th>Operador</th><th style={{ textAlign: 'right' }}>Pedidos</th><th style={{ textAlign: 'right' }}>Chapas</th><th style={{ textAlign: 'right' }}>Caixas</th><th style={{ textAlign: 'right' }}>Media Cx/Ped</th><th style={{ textAlign: 'right' }}>Tinta Total</th><th>Tam Mais Prod</th></tr></thead>
-          <tbody>{diaOp.map((d) => <tr key={`${d.data}-${d.operador}`}><td>{d.data}</td><td>{d.operador}</td><td style={{ textAlign: 'right' }}>{fmt(d.pedidos)}</td><td style={{ textAlign: 'right' }}>{fmt(d.chapas)}</td><td style={{ textAlign: 'right' }}>{fmt(d.caixas)}</td><td style={{ textAlign: 'right' }}>{d.mediaCaixasPorPedido.toFixed(1)}</td><td style={{ textAlign: 'right' }}>{fmt(Math.round(d.tinta))}</td><td>{d.tamanhoMaisProduzido}</td></tr>)}</tbody>
+          <thead><tr><th>Data</th><th>Operador</th><th style={{ textAlign: 'right' }}>Pedidos</th><th style={{ textAlign: 'right' }}>Chapas</th><th style={{ textAlign: 'right' }}>Caixas</th><th style={{ textAlign: 'right' }}>Media Cx/Ped</th><th>Tam Mais Prod</th></tr></thead>
+          <tbody>{diaOp.map((d) => <tr key={`${d.data}-${d.operador}`}><td>{d.data}</td><td>{d.operador}</td><td style={{ textAlign: 'right' }}>{fmt(d.pedidos)}</td><td style={{ textAlign: 'right' }}>{fmt(d.chapas)}</td><td style={{ textAlign: 'right' }}>{fmt(d.caixas)}</td><td style={{ textAlign: 'right' }}>{d.mediaCaixasPorPedido.toFixed(1)}</td><td>{d.tamanhoMaisProduzido}</td></tr>)}</tbody>
         </table>
       </TableCard>
       <TableCard title="Historico Completo (Servicos)">
         <div className="mobile-h-scroll">
-          <table className="data-table" style={{ minWidth: 980 }}>
-            <thead><tr><th>#</th><th>Data</th><th>Operador</th><th>Prefixo + Codigo</th><th>Tam</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Imgs</th><th style={{ textAlign: 'right' }}>Chapas</th><th style={{ textAlign: 'right' }}>Caixas</th><th>Calculo</th><th style={{ textAlign: 'right' }}>Tinta</th></tr></thead>
-            <tbody>{historico.map((p, i) => <tr key={`${p.orderID}-${i}`}><td>{i + 1}</td><td>{p.data}</td><td>{p.operador}</td><td>{codigoComPrefixo(p.prefixo, p.codigo)}</td><td>{tamanhoRotulo(p.tamanhoCm)}</td><td>{p.tipoCaixa}</td><td style={{ textAlign: 'right' }}>{fmt(p.qtdImagens)}</td><td style={{ textAlign: 'right' }}>{fmt(p.chapasImpressas)}</td><td style={{ textAlign: 'right' }}>{fmt(p.caixasProduzidas)}</td><td>{p.chapasImpressas}x{p.qtdImagens}={p.caixasProduzidas}</td><td style={{ textAlign: 'right' }}>{fmt(Math.round(p.tintaTotal))}</td></tr>)}</tbody>
+          <table className="data-table" style={{ minWidth: 900 }}>
+            <thead><tr><th>#</th><th>Data</th><th>Operador</th><th>Prefixo + Codigo</th><th>Tam</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Imgs</th><th style={{ textAlign: 'right' }}>Chapas</th><th style={{ textAlign: 'right' }}>Caixas</th><th>Calculo</th></tr></thead>
+            <tbody>{historico.map((p, i) => <tr key={`${p.orderID}-${i}`}><td>{i + 1}</td><td>{p.data}</td><td>{p.operador}</td><td>{codigoComPrefixo(p.prefixo, p.codigo)}</td><td>{tamanhoRotulo(p.tamanhoCm)}</td><td>{p.tipoCaixa}</td><td style={{ textAlign: 'right' }}>{fmt(p.qtdImagens)}</td><td style={{ textAlign: 'right' }}>{fmt(p.chapasImpressas)}</td><td style={{ textAlign: 'right' }}>{fmt(p.caixasProduzidas)}</td><td>{p.chapasImpressas}x{p.qtdImagens}={p.caixasProduzidas}</td></tr>)}</tbody>
           </table>
         </div>
       </TableCard>
