@@ -25,6 +25,7 @@ import {
   fmt,
   isStatusServico,
   isStatusTeste,
+  lerArquivoAgenda,
   lerArquivoMaquina,
   porDia,
   porOperador,
@@ -363,9 +364,8 @@ function AgendaUploadModal({
   onImport,
 }: {
   onClose: () => void
-  onImport: (pedidos: Pedido[], agendaData: string, info: string) => Promise<void>
+  onImport: (items: AgendaItem[], info: string) => Promise<void>
 }) {
-  const [data, setData] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -374,22 +374,19 @@ function AgendaUploadModal({
   function onFile(next: File) {
     setFile(next)
     setError('')
-    const m = next.name.match(/(\d{4})(\d{2})(\d{2})/)
-    if (m) setData(`${m[3]}/${m[2]}/${m[1]}`)
   }
 
   async function handleImport() {
-    if (!file || !data) {
-      setError('Preencha a data e selecione o arquivo da agenda.')
+    if (!file) {
+      setError('Selecione o arquivo da agenda.')
       return
     }
     setLoading(true)
     setError('')
     try {
-      const rows = await lerArquivoMaquina(file)
-      const pedidos = processarArquivo(rows, data, '')
-      const info = `${pedidos.length} item(ns) de agenda`
-      await onImport(pedidos, data, info)
+      const items = await lerArquivoAgenda(file)
+      const info = `${items.length} item(ns) de agenda`
+      await onImport(items, info)
     } catch {
       setError('Erro ao ler arquivo da agenda.')
     } finally {
@@ -408,8 +405,8 @@ function AgendaUploadModal({
         <button onClick={() => ref.current?.click()} className="upload-zone" style={{ width: '100%', marginBottom: 12 }}>
           {file ? file.name : 'Selecionar arquivo .xlsx/.csv da agenda'}
         </button>
-        <div style={{ marginBottom: 12 }}>
-          <input value={data} onChange={(e) => setData(e.target.value)} placeholder="DD/MM/AAAA" style={{ width: '100%', background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: 10 }} />
+        <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 12 }}>
+          O sistema vai ler automaticamente os blocos <code>Digital Elite - DD/MM/AAAA</code> e agrupar a agenda por dia.
         </div>
         {error && <div style={{ color: '#fb7185', marginBottom: 8, fontSize: 12 }}>{error}</div>}
         <button onClick={handleImport} disabled={loading || !file} style={{ width: '100%', border: 'none', borderRadius: 8, background: 'var(--cyan)', color: '#00131b', padding: 12, fontWeight: 700, cursor: 'pointer' }}>
@@ -1608,13 +1605,14 @@ function AgendaTab({
   ;[...servicos]
     .sort((a, b) => comparePtDates(a.data, b.data))
     .forEach((pedido) => {
-      if (!producedByOrder.has(pedido.orderID)) producedByOrder.set(pedido.orderID, pedido)
+      const key = codigoComPrefixo(pedido.prefixo, pedido.codigo)
+      if (!producedByOrder.has(key)) producedByOrder.set(key, pedido)
     })
 
   const agendaRows = agendaItems
     .filter((item) => comparePtDates(item.agendaData, selectedDate) <= 0)
     .map((item) => {
-      const produced = producedByOrder.get(item.orderID)
+      const produced = producedByOrder.get(codigoComPrefixo(item.prefixo, item.codigo))
       const producedUntilSelected = produced && comparePtDates(produced.data, selectedDate) <= 0 ? produced : null
       let status: AgendaStatus = 'pendente'
 
@@ -1642,7 +1640,7 @@ function AgendaTab({
       if (statusCmp !== 0) return statusCmp
       const dateCmp = comparePtDates(a.agendaData, b.agendaData)
       if (dateCmp !== 0) return dateCmp
-      return a.orderID.localeCompare(b.orderID)
+      return codigoComPrefixo(a.prefixo, a.codigo).localeCompare(codigoComPrefixo(b.prefixo, b.codigo))
     })
 
   const totalAgenda = agendaRows.length
@@ -1714,14 +1712,15 @@ function AgendaTab({
 
       <TableCard title="Status da Agenda">
         <div className="mobile-h-scroll">
-          <table className="data-table" style={{ minWidth: 980 }}>
-            <thead><tr><th>Agenda</th><th>Status</th><th>Conclusao</th><th>Cliente</th><th>Prefixo + Codigo</th><th>Tam</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Imgs</th><th style={{ textAlign: 'right' }}>Chapas</th><th style={{ textAlign: 'right' }}>Caixas</th></tr></thead>
+          <table className="data-table" style={{ minWidth: 1100 }}>
+            <thead><tr><th>Agenda</th><th>Ref.</th><th>Status</th><th>Conclusao</th><th>Cliente</th><th>Prefixo + Codigo</th><th>Tam</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Imgs</th><th style={{ textAlign: 'right' }}>Chapas</th><th style={{ textAlign: 'right' }}>Caixas</th></tr></thead>
             <tbody>
               {agendaRows.map((item, index) => {
                 const statusStyle = agendaStatusColors(item.status)
                 return (
                   <tr key={`${item.agendaData}-${item.orderID}-${index}`}>
                     <td>{item.agendaData}</td>
+                    <td>{item.dataReferencia || '-'}</td>
                     <td>
                       <span style={{ border: `1px solid ${statusStyle.border}`, borderRadius: 999, padding: '2px 8px', fontSize: 10, color: statusStyle.color, background: statusStyle.bg }}>
                         {agendaStatusLabel(item.status)}
@@ -2050,9 +2049,9 @@ export default function App() {
     }
   }
 
-  async function onImportAgenda(novos: Pedido[], agendaData: string, info: string) {
+  async function onImportAgenda(novos: AgendaItem[], info: string) {
     try {
-      const res = await addAgendaItems(novos, agendaData)
+      const res = await addAgendaItems(novos)
       setAgendaModal(false)
       showToast(res.duplicatas > 0 ? `${res.adicionados} agenda(s) importadas â€¢ ${res.duplicatas} duplicadas` : info)
     } catch (error) {

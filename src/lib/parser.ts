@@ -52,6 +52,7 @@ export interface AgendaItem {
   createdAt?: string
   createdBy?: string | null
   agendaData: string
+  dataReferencia: string
   mes: string
   orderID: string
   prefixo: string
@@ -661,6 +662,7 @@ export function toPedidoInsertRow(
 export function agendaFromPedidos(pedidos: Pedido[], agendaData: string): AgendaItem[] {
   return pedidos.map((pedido) => ({
     agendaData,
+    dataReferencia: pedido.data,
     mes: mesFromData(agendaData),
     orderID: pedido.orderID,
     prefixo: pedido.prefixo,
@@ -683,6 +685,7 @@ export function toAgendaItem(row: Record<string, unknown>): AgendaItem {
     createdAt: stringOrNull(row.created_at) || undefined,
     createdBy: stringOrNull(row.created_by),
     agendaData,
+    dataReferencia: stringOrNull(row.data_referencia) || '',
     mes: normalizeMes(row.mes) || mesFromData(agendaData),
     orderID: stringOrNull(row.order_id) || '',
     prefixo: stringOrNull(row.prefixo) || '',
@@ -705,6 +708,7 @@ export function toAgendaInsertRow(
 ): Record<string, unknown> {
   const row: Record<string, unknown> = {
     agenda_data: item.agendaData,
+    data_referencia: item.dataReferencia,
     order_id: item.orderID,
     prefixo: item.prefixo,
     codigo: item.codigo,
@@ -720,6 +724,74 @@ export function toAgendaInsertRow(
   }
   if (includeMes) row.mes = item.mes || mesFromData(item.agendaData)
   return row
+}
+
+function excelSerialToDatePtBr(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return normalizeDatePtBr(value)
+  const utcMs = Math.round((value - 25569) * 86400 * 1000)
+  const d = new Date(utcMs)
+  if (!Number.isFinite(d.getTime())) return null
+  return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCFullYear())}`
+}
+
+function splitAgendaProductCode(value: unknown) {
+  const digits = String(value ?? '').replace(/\D/g, '')
+  if (!digits) return { prefixo: '', codigo: '' }
+  if (digits.length <= 2) return { prefixo: digits, codigo: '' }
+  return {
+    prefixo: digits.slice(0, 2),
+    codigo: String(Number(digits.slice(2))),
+  }
+}
+
+export async function lerArquivoAgenda(file: File, fallbackAgendaData = ''): Promise<AgendaItem[]> {
+  const { read, utils, SSF } = await import('xlsx')
+  const buffer = await file.arrayBuffer()
+  const workbook = read(buffer, { cellDates: false })
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+  const rows = utils.sheet_to_json(worksheet, { header: 1, defval: null, raw: true, blankrows: false }) as unknown[][]
+
+  const result: AgendaItem[] = []
+  let currentAgendaData = fallbackAgendaData.trim()
+
+  for (const row of rows) {
+    const descricao = String(row[4] ?? '').trim()
+    const bloco = descricao.match(/Digital\s+Elite\s*-\s*(\d{2}\/\d{2}\/\d{4})/i)
+    if (bloco) {
+      currentAgendaData = bloco[1]
+      continue
+    }
+
+    const referencia = excelSerialToDatePtBr(row[1]) || ''
+    const ordem = String(row[2] ?? '').trim()
+    const produto = row[3]
+    const quantidade = Math.trunc(parseNumber(row[5]))
+    if (!descricao || !produto || !quantidade) continue
+
+    const parsed = parseOrderId(descricao)
+    const { prefixo, codigo } = splitAgendaProductCode(produto)
+    const agendaData = currentAgendaData || referencia
+    if (!agendaData) continue
+
+    result.push({
+      agendaData,
+      dataReferencia: referencia,
+      mes: mesFromData(agendaData),
+      orderID: ordem || String(produto),
+      prefixo: prefixo || parsed.prefixo,
+      codigo: codigo || parsed.codigo,
+      nomeCliente: parsed.nomeCliente,
+      tamanhoCm: parsed.tamanhoCm,
+      tipoCaixa: parsed.tipoCaixa,
+      pecaUnica: parsed.pecaUnica,
+      maquinaImp: parsed.maquinaImp,
+      qtdImagens: parsed.qtdImagens || 1,
+      chapasPlanejadas: quantidade,
+      caixasPlanejadas: quantidade * (parsed.qtdImagens || 1),
+    })
+  }
+
+  return result
 }
 
 export function sanitizeLegacyPedido(row: Record<string, unknown>): Pedido | null {

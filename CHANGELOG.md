@@ -10,6 +10,13 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.1.1] - 2026-03-10
+
+### Fixed
+- Importacao da agenda ajustada para o layout real do arquivo `digital.xlsx`, com leitura dos blocos `Digital Elite - DD/MM/AAAA`.
+- Vinculo da agenda com a producao alterado de `order_id` para `prefixo + codigo`, alinhando com a estrutura operacional da agenda.
+- Inclusao de `data_referencia` na agenda para manter a data original exibida na planilha.
+
 ## [1.1.0] - 2026-03-10
 
 ### Added

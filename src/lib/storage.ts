@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import {
-  agendaFromPedidos,
   parseTamanho,
   sanitizeLegacyPedido,
   toAgendaInsertRow,
@@ -590,7 +589,7 @@ export function usePedidos() {
     return { adicionados, duplicatas }
   }
 
-  async function addAgendaItems(novos: Pedido[], agendaData: string): Promise<AddAgendaResult> {
+  async function addAgendaItems(novos: AgendaItem[]): Promise<AddAgendaResult> {
     if (!supabase) return { adicionados: 0, duplicatas: novos.length }
     const userId = session?.user?.id
     if (!userId) return { adicionados: 0, duplicatas: novos.length }
@@ -602,9 +601,8 @@ export function usePedidos() {
     }
     if (!novos.length) return { adicionados: 0, duplicatas: 0 }
 
-    const agenda = agendaFromPedidos(novos, agendaData)
     let includeMes = agendaHasMesColumn
-    let payload = agenda.map((item) => toAgendaInsertRow(item, userId, includeMes))
+    let payload = novos.map((item) => toAgendaInsertRow(item, userId, includeMes))
 
     let { data, error } = await supabase
       .from('agenda_items')
@@ -621,7 +619,7 @@ export function usePedidos() {
 
       includeMes = false
       setAgendaHasMesColumn(false)
-      payload = agenda.map((item) => toAgendaInsertRow(item, userId, includeMes))
+      payload = novos.map((item) => toAgendaInsertRow(item, userId, includeMes))
       const retry = await supabase
         .from('agenda_items')
         .upsert(payload, {
@@ -635,7 +633,7 @@ export function usePedidos() {
     }
 
     const adicionados = data?.length || 0
-    const duplicatas = Math.max(0, agenda.length - adicionados)
+    const duplicatas = Math.max(0, novos.length - adicionados)
     await fetchAgendaItems()
     return { adicionados, duplicatas }
   }
