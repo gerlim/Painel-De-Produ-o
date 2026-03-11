@@ -10,6 +10,11 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.1.9] - 2026-03-10
+
+### Changed
+- Observacao de atraso da `Agenda` passou a abrir em um dialogo por item atrasado, com motivo e texto livre, substituindo a area separada abaixo da tabela.
+
 ## [1.1.8] - 2026-03-10
 
 ### Fixed

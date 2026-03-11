@@ -1676,6 +1676,7 @@ function AgendaTab({
   const [atrasoForms, setAtrasoForms] = useState<Record<number, { motivo: AtrasoMotivo | ''; observacao: string }>>({})
   const [savingAtrasoId, setSavingAtrasoId] = useState(0)
   const [clearingAgenda, setClearingAgenda] = useState(false)
+  const [selectedAtrasoItemId, setSelectedAtrasoItemId] = useState(0)
 
   useEffect(() => {
     if (!importedDates.length) {
@@ -1709,6 +1710,7 @@ function AgendaTab({
   const carregadosDeAtraso = agendaRows.filter((item) => comparePtDates(item.agendaData, selectedDate) < 0).length
   const concluidosHoje = agendaRows.filter((item) => item.producedAt === selectedDate).length
   const atrasoRows = agendaRows.filter((item) => item.status === 'atrasado' || item.status === 'concluido_atrasado')
+  const selectedAtrasoItem = atrasoRows.find((item) => item.id === selectedAtrasoItemId) || null
 
   useEffect(() => {
     setAtrasoForms((current) => {
@@ -1730,6 +1732,7 @@ function AgendaTab({
     setSavingAtrasoId(item.id)
     try {
       await onSaveAtraso(item.id, (form.motivo || null) as AtrasoMotivo | null, form.observacao || null)
+      setSelectedAtrasoItemId(0)
     } finally {
       setSavingAtrasoId(0)
     }
@@ -1869,7 +1872,27 @@ function AgendaTab({
                       <div>{fmt(exibirCaixas)}</div>
                       {mudouCaixas && <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>plan. {fmt(item.caixasPlanejadas)}</div>}
                     </td>
-                    <td>{item.atrasoMotivo ? atrasoMotivoLabel(item.atrasoMotivo) : '-'}</td>
+                    <td>
+                      {isAdmin && (item.status === 'atrasado' || item.status === 'concluido_atrasado') ? (
+                        <button
+                          onClick={() => item.id && setSelectedAtrasoItemId(item.id)}
+                          style={{
+                            border: '1px solid var(--border)',
+                            borderRadius: 8,
+                            background: 'var(--ink-700)',
+                            color: 'var(--text-primary)',
+                            padding: '6px 10px',
+                            cursor: 'pointer',
+                            minWidth: 120,
+                            textAlign: 'left',
+                          }}
+                        >
+                          {item.atrasoMotivo ? atrasoMotivoLabel(item.atrasoMotivo) : 'Registrar'}
+                        </button>
+                      ) : (
+                        <span>{item.atrasoMotivo ? atrasoMotivoLabel(item.atrasoMotivo) : '-'}</span>
+                      )}
+                    </td>
                   </tr>
                 )
               })}
@@ -1878,76 +1901,77 @@ function AgendaTab({
         </div>
       </TableCard>
 
-      {isAdmin && atrasoRows.length > 0 && (
-        <TableCard title="Observacoes de Atraso">
-          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 10 }}>
-            Registre o motivo do atraso para acompanhar pendencias e conclusoes fora da data prevista.
-          </div>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {atrasoRows.map((item) => {
-              const form = atrasoForms[item.id || 0] || { motivo: item.atrasoMotivo || '', observacao: item.atrasoObservacao || '' }
-              return (
-                <div key={`delay-${item.id || item.orderID}-${item.agendaData}`} className="card" style={{ padding: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
-                    <div>
-                      <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{codigoComPrefixo(item.prefixo, item.codigo)} - {item.nomeCliente}</div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-                        Agenda {item.agendaData} | Status {agendaStatusLabel(item.status)} {item.producedAt ? `| Conclusao ${item.producedAt}` : ''}
-                      </div>
-                    </div>
-                    <span style={{ border: `1px solid ${agendaStatusColors(item.status).border}`, borderRadius: 999, padding: '2px 8px', fontSize: 10, color: agendaStatusColors(item.status).color, background: agendaStatusColors(item.status).bg }}>
-                      {agendaStatusLabel(item.status)}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 220px) 1fr auto', gap: 8, alignItems: 'start' }}>
-                    <select
-                      value={form.motivo}
-                      onChange={(event) =>
-                        setAtrasoForms((current) => ({
-                          ...current,
-                          [item.id || 0]: {
-                            motivo: event.target.value as AtrasoMotivo | '',
-                            observacao: current[item.id || 0]?.observacao ?? form.observacao,
-                          },
-                        }))
-                      }
-                      style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }}
-                    >
-                      <option value="">Selecionar motivo</option>
-                      {ATRASO_MOTIVO_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-
-                    <input
-                      value={form.observacao}
-                      onChange={(event) =>
-                        setAtrasoForms((current) => ({
-                          ...current,
-                          [item.id || 0]: {
-                            motivo: current[item.id || 0]?.motivo ?? form.motivo,
-                            observacao: event.target.value,
-                          },
-                        }))
-                      }
-                      placeholder="Observacao complementar do atraso"
-                      style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }}
-                    />
-
-                    <button
-                      onClick={() => handleSaveAtraso(item)}
-                      disabled={!item.id || savingAtrasoId === item.id}
-                      style={{ border: 'none', borderRadius: 8, background: 'var(--cyan)', color: '#00131b', padding: '8px 12px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      {savingAtrasoId === item.id ? 'Salvando...' : 'Salvar'}
-                    </button>
-                  </div>
+      {isAdmin && selectedAtrasoItem && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 120, display: 'grid', placeItems: 'center', padding: 16 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 640, padding: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+              <div>
+                <div style={{ color: 'var(--cyan)', fontFamily: 'var(--font-display)', fontSize: 22 }}>OBSERVACAO DE ATRASO</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
+                  {codigoComPrefixo(selectedAtrasoItem.prefixo, selectedAtrasoItem.codigo)} - {selectedAtrasoItem.nomeCliente}
                 </div>
-              )
-            })}
+              </div>
+              <button onClick={() => setSelectedAtrasoItemId(0)} style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 12 }}>
+              Agenda {selectedAtrasoItem.agendaData} | Status {agendaStatusLabel(selectedAtrasoItem.status)} {selectedAtrasoItem.producedAt ? `| Conclusao ${selectedAtrasoItem.producedAt}` : ''}
+            </div>
+
+            <div style={{ display: 'grid', gap: 10 }}>
+              <select
+                value={(atrasoForms[selectedAtrasoItem.id || 0]?.motivo ?? selectedAtrasoItem.atrasoMotivo ?? '')}
+                onChange={(event) =>
+                  setAtrasoForms((current) => ({
+                    ...current,
+                    [selectedAtrasoItem.id || 0]: {
+                      motivo: event.target.value as AtrasoMotivo | '',
+                      observacao: current[selectedAtrasoItem.id || 0]?.observacao ?? selectedAtrasoItem.atrasoObservacao ?? '',
+                    },
+                  }))
+                }
+                style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '10px 12px' }}
+              >
+                <option value="">Selecionar motivo</option>
+                {ATRASO_MOTIVO_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+
+              <textarea
+                value={atrasoForms[selectedAtrasoItem.id || 0]?.observacao ?? selectedAtrasoItem.atrasoObservacao ?? ''}
+                onChange={(event) =>
+                  setAtrasoForms((current) => ({
+                    ...current,
+                    [selectedAtrasoItem.id || 0]: {
+                      motivo: current[selectedAtrasoItem.id || 0]?.motivo ?? selectedAtrasoItem.atrasoMotivo ?? '',
+                      observacao: event.target.value,
+                    },
+                  }))
+                }
+                placeholder="Observacao complementar do atraso"
+                rows={4}
+                style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '10px 12px', resize: 'vertical' }}
+              />
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button
+                  onClick={() => setSelectedAtrasoItemId(0)}
+                  style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--ink-700)', color: 'var(--text-primary)', padding: '8px 12px', cursor: 'pointer' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => handleSaveAtraso(selectedAtrasoItem)}
+                  disabled={!selectedAtrasoItem.id || savingAtrasoId === selectedAtrasoItem.id}
+                  style={{ border: 'none', borderRadius: 8, background: 'var(--cyan)', color: '#00131b', padding: '8px 12px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  {savingAtrasoId === selectedAtrasoItem.id ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </div>
           </div>
-        </TableCard>
+        </div>
       )}
 
       {totalAgenda > 0 && pendentes === 0 && atrasados === 0 && (
