@@ -10,6 +10,11 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.1.8] - 2026-03-10
+
+### Fixed
+- Aba `Agenda` passou a exibir os totais reais produzidos do item conciliado, em vez de limitar `imgs`, `chapas` e `caixas` ao valor planejado na agenda.
+
 ## [1.1.7] - 2026-03-10
 
 ### Fixed

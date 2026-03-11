@@ -158,7 +158,6 @@ function reconcileAgendaRows(agendaItems: AgendaItem[], pedidos: Pedido[], selec
     .sort((a, b) => comparePtDates(a.data, b.data))
     .map((pedido) => ({
       ...pedido,
-      remainingChapas: Math.max(0, pedido.chapasImpressas),
       normalizedCodigo: normalizeAgendaCode(pedido.codigo),
       normalizedPrefixo: String(pedido.prefixo || '').trim(),
     }))
@@ -173,37 +172,16 @@ function reconcileAgendaRows(agendaItems: AgendaItem[], pedidos: Pedido[], selec
     .map((item) => {
       const normalizedCodigo = normalizeAgendaCode(item.codigo)
       const normalizedPrefixo = String(item.prefixo || '').trim()
-      const pool = serviceRows
-        .filter((pedido) => pedido.remainingChapas > 0 && pedido.normalizedCodigo === normalizedCodigo)
-        .sort((a, b) => {
-          const aScore = a.normalizedPrefixo === normalizedPrefixo ? 0 : 1
-          const bScore = b.normalizedPrefixo === normalizedPrefixo ? 0 : 1
-          if (aScore !== bScore) return aScore - bScore
-          return comparePtDates(a.data, b.data)
-        })
+      const sameCodeRows = serviceRows.filter((pedido) => pedido.normalizedCodigo === normalizedCodigo)
+      const exactPrefixRows = sameCodeRows.filter((pedido) => pedido.normalizedPrefixo === normalizedPrefixo)
+      const matchedRows = exactPrefixRows.length ? exactPrefixRows : sameCodeRows
 
-      let remainingChapas = Math.max(0, item.chapasPlanejadas)
-      let chapasRealizadas = 0
-      let caixasRealizadas = 0
-      let qtdImagensRealizadas = 0
-      let producedAt = ''
+      const chapasRealizadas = matchedRows.reduce((acc, pedido) => acc + pedido.chapasImpressas, 0)
+      const caixasRealizadas = matchedRows.reduce((acc, pedido) => acc + pedido.caixasProduzidas, 0)
+      const qtdImagensRealizadas = matchedRows.reduce((acc, pedido) => Math.max(acc, Math.max(1, pedido.qtdImagens)), 0)
+      const producedAt = matchedRows.length ? matchedRows[matchedRows.length - 1].data : ''
 
-      for (const pedido of pool) {
-        if (remainingChapas <= 0) break
-        if (pedido.remainingChapas <= 0) continue
-
-        const usedChapas = Math.min(pedido.remainingChapas, remainingChapas)
-        if (usedChapas <= 0) continue
-
-        pedido.remainingChapas -= usedChapas
-        remainingChapas -= usedChapas
-        chapasRealizadas += usedChapas
-        caixasRealizadas += usedChapas * Math.max(1, pedido.qtdImagens)
-        if (!qtdImagensRealizadas) qtdImagensRealizadas = Math.max(1, pedido.qtdImagens)
-        producedAt = pedido.data
-      }
-
-      const hasProduction = chapasRealizadas > 0 || caixasRealizadas > 0
+      const hasProduction = matchedRows.length > 0
       const isConcluido = item.chapasPlanejadas > 0 ? chapasRealizadas >= item.chapasPlanejadas : hasProduction
       let status: AgendaStatus = 'pendente'
 
