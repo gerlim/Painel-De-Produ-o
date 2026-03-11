@@ -10,6 +10,12 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.1.11] - 2026-03-10
+
+### Changed
+- Area de `Gestao` recebeu acabamento visual com icones por secao, resumo com destaques e leitura mais clara das funcoes administrativas.
+- Acoes sensiveis ganharam destaque visual e as listas de cadastros, operadores e acessos ficaram mais legiveis no mobile.
+
 ## [1.1.10] - 2026-03-10
 
 ### Changed

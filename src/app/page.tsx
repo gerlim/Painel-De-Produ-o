@@ -1,7 +1,7 @@
 'use client'
 
-import { useDeferredValue, useEffect, useRef, useState } from 'react'
-import { Download, Factory, LogOut, Settings2, TrendingUp, Upload, UserRound, X } from 'lucide-react'
+import { type ReactNode, useDeferredValue, useEffect, useRef, useState } from 'react'
+import { AlertTriangle, Database, Download, Factory, LogOut, Settings2, Shield, Tags, TrendingUp, Upload, UserRound, Users, X } from 'lucide-react'
 import {
   Bar,
   BarChart,
@@ -838,22 +838,51 @@ function AdminToolsModal({
   })
 
   const summaryCards = [
-    { key: 'pendentes', label: 'Cadastros pendentes', value: fmt(filteredPendingProfiles.length), hint: 'Aguardando aprovacao' },
-    { key: 'operadores', label: 'Operadores ativos', value: fmt(activeOperators.length), hint: 'Com acesso operacional' },
-    { key: 'tamanhos', label: 'Tamanhos nao identificados', value: fmt(unknownSizes.length), hint: 'Precisam de correcao' },
+    {
+      key: 'pendentes',
+      label: 'Cadastros pendentes',
+      value: fmt(filteredPendingProfiles.length),
+      hint: 'Aguardando aprovacao',
+      icon: <Users size={16} />,
+      accent: 'rgba(16,185,129,0.18)',
+    },
+    {
+      key: 'operadores',
+      label: 'Operadores ativos',
+      value: fmt(activeOperators.length),
+      hint: 'Com acesso operacional',
+      icon: <UserRound size={16} />,
+      accent: 'rgba(0,212,255,0.18)',
+    },
+    {
+      key: 'tamanhos',
+      label: 'Tamanhos nao identificados',
+      value: fmt(unknownSizes.length),
+      hint: 'Precisam de correcao',
+      icon: <AlertTriangle size={16} />,
+      accent: 'rgba(245,158,11,0.2)',
+    },
     {
       key: 'regras',
       label: 'Regras de classificacao',
       value: fmt(sortedRules.length),
       hint: classificacaoRulesTableEnabled ? 'Ativas no banco' : 'Tabela ainda nao criada',
+      icon: <Tags size={16} />,
+      accent: 'rgba(139,92,246,0.2)',
     },
   ]
 
-  const sectionMeta: Array<{ id: 'dados' | 'classificacao' | 'cadastros' | 'acessos'; label: string; hint: string; count: string }> = [
-    { id: 'dados', label: 'Dados', hint: 'Limpeza, operador e correcoes', count: `${fmt(unknownSizes.length)} pendencias` },
-    { id: 'classificacao', label: 'Classificacao', hint: 'Modelos e regras automaticas', count: `${fmt(unknownModels.length)} itens` },
-    { id: 'cadastros', label: 'Cadastros', hint: 'Solicitacoes e operadores', count: `${fmt(filteredPendingProfiles.length)} aguardando` },
-    { id: 'acessos', label: 'Acessos', hint: 'Perfis, papeis e ativacao', count: `${fmt(filteredManagedProfiles.length)} usuarios` },
+  const sectionMeta: Array<{
+    id: 'dados' | 'classificacao' | 'cadastros' | 'acessos'
+    label: string
+    hint: string
+    count: string
+    icon: ReactNode
+  }> = [
+    { id: 'dados', label: 'Dados', hint: 'Limpeza, operador e correcoes', count: `${fmt(unknownSizes.length)} pendencias`, icon: <Database size={16} /> },
+    { id: 'classificacao', label: 'Classificacao', hint: 'Modelos e regras automaticas', count: `${fmt(unknownModels.length)} itens`, icon: <Tags size={16} /> },
+    { id: 'cadastros', label: 'Cadastros', hint: 'Solicitacoes e operadores', count: `${fmt(filteredPendingProfiles.length)} aguardando`, icon: <Users size={16} /> },
+    { id: 'acessos', label: 'Acessos', hint: 'Perfis, papeis e ativacao', count: `${fmt(filteredManagedProfiles.length)} usuarios`, icon: <Shield size={16} /> },
   ]
 
   return (
@@ -933,10 +962,13 @@ function AdminToolsModal({
                   border: '1px solid var(--border)',
                   borderRadius: 16,
                   padding: '14px 14px 12px',
-                  background: 'linear-gradient(135deg, rgba(0,212,255,0.08), rgba(255,255,255,0.02))',
+                  background: `linear-gradient(135deg, ${card.accent}, rgba(255,255,255,0.02))`,
                 }}
               >
-                <div style={{ color: 'var(--text-muted)', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>{card.label}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{card.label}</div>
+                  <div style={{ color: 'var(--text-primary)', opacity: 0.9 }}>{card.icon}</div>
+                </div>
                 <div style={{ color: 'var(--text-primary)', fontSize: 26, fontWeight: 800, lineHeight: 1, marginBottom: 6 }}>{card.value}</div>
                 <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{card.hint}</div>
               </div>
@@ -961,7 +993,12 @@ function AdminToolsModal({
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <span style={{ fontWeight: 800 }}>{section.label}</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 999, background: active ? 'rgba(0,212,255,0.18)' : 'rgba(255,255,255,0.05)' }}>
+                        {section.icon}
+                      </span>
+                      {section.label}
+                    </span>
                     <span style={{ color: active ? 'var(--cyan)' : 'var(--text-muted)', fontSize: 11 }}>{section.count}</span>
                   </div>
                   <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{section.hint}</div>
@@ -976,7 +1013,16 @@ function AdminToolsModal({
         {activeSection === 'dados' && (
           <>
         <div className="card" style={{ padding: 16, borderRadius: 18, marginBottom: 12 }}>
-          <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 8 }}>Limpar por periodo</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 10, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ color: 'var(--text-primary)', fontWeight: 800, marginBottom: 6 }}>Limpar por periodo</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Use apenas quando precisar remover uma importacao inteira.</div>
+            </div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '6px 10px', background: 'rgba(244,63,94,0.14)', color: '#fb7185', fontSize: 11, fontWeight: 800 }}>
+              <AlertTriangle size={14} />
+              Acao sensivel
+            </div>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
             <input type="date" value={clearDate} onChange={(e) => setClearDate(e.target.value)} style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: 10 }} />
             <select value={clearPeriod} onChange={(e) => setClearPeriod(e.target.value as ClearPeriod)} style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: 10 }}>
@@ -984,14 +1030,15 @@ function AdminToolsModal({
               <option value="week">Semana</option>
               <option value="month">Mes</option>
             </select>
-            <button onClick={handleClear} disabled={loadingClear} style={{ border: 'none', borderRadius: 8, background: 'rgba(244,63,94,0.18)', color: '#fb7185', padding: '0 12px', fontWeight: 700, cursor: 'pointer' }}>
+            <button onClick={handleClear} disabled={loadingClear} style={{ border: '1px solid rgba(244,63,94,0.28)', borderRadius: 12, background: 'linear-gradient(135deg, rgba(244,63,94,0.22), rgba(244,63,94,0.08))', color: '#fb7185', padding: '0 12px', fontWeight: 800, cursor: 'pointer' }}>
               {loadingClear ? 'Limpando...' : 'Limpar'}
             </button>
           </div>
         </div>
 
-        <div className="card" style={{ padding: 12 }}>
-          <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 8 }}>Alterar operador por data</div>
+        <div className="card" style={{ padding: 16, borderRadius: 18 }}>
+          <div style={{ color: 'var(--text-primary)', fontWeight: 800, marginBottom: 6 }}>Alterar operador por data</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>Corrige rapidamente um lote inteiro quando a producao entrou no nome errado.</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginBottom: 8 }}>
             <input type="date" value={opDate} onChange={(e) => setOpDate(e.target.value)} style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: 10 }} />
             <select value={origem} onChange={(e) => setOrigem(e.target.value)} style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: 10 }}>
@@ -1011,7 +1058,12 @@ function AdminToolsModal({
         </div>
 
         <div className="card" style={{ padding: 16, borderRadius: 18, marginTop: 12 }}>
-          <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 8 }}>Tamanhos nao identificados</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+            <div style={{ color: 'var(--text-primary)', fontWeight: 800 }}>Tamanhos nao identificados</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11, borderRadius: 999, padding: '4px 10px', background: 'rgba(245,158,11,0.12)' }}>
+              {fmt(unknownSizes.length)} pendencia(s)
+            </div>
+          </div>
           <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
             Corrija tamanhos fora do padrao para um valor reconhecido (ex.: <code>35</code> ou <code>35x4</code>).
           </div>
@@ -1024,14 +1076,15 @@ function AdminToolsModal({
             <div
               key={item.key}
               style={{
-                border: '1px solid var(--border)',
-                borderRadius: 10,
-                padding: 10,
+                border: '1px solid rgba(245,158,11,0.18)',
+                borderRadius: 14,
+                padding: 12,
                 marginTop: 8,
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
                 gap: 8,
                 alignItems: 'center',
+                background: 'linear-gradient(135deg, rgba(245,158,11,0.08), rgba(255,255,255,0.01))',
               }}
             >
               <div>
@@ -1075,8 +1128,13 @@ function AdminToolsModal({
 
         {activeSection === 'classificacao' && (
           <>
-        <div className="card" style={{ padding: 12 }}>
-          <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 8 }}>Modelos/prefixos para classificar</div>
+        <div className="card" style={{ padding: 16, borderRadius: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+            <div style={{ color: 'var(--text-primary)', fontWeight: 800 }}>Modelos/prefixos para classificar</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11, borderRadius: 999, padding: '4px 10px', background: 'rgba(139,92,246,0.12)' }}>
+              {fmt(unknownModels.length)} item(ns)
+            </div>
+          </div>
           <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
             Itens com tipo <code>Outro</code> ou tamanho nao identificado. Use os atalhos para preencher a regra.
           </div>
@@ -1089,12 +1147,13 @@ function AdminToolsModal({
             <div
               key={item.key}
               style={{
-                border: '1px solid var(--border)',
-                borderRadius: 10,
-                padding: 10,
+                border: '1px solid rgba(139,92,246,0.18)',
+                borderRadius: 14,
+                padding: 12,
                 marginTop: 8,
                 display: 'grid',
                 gap: 8,
+                background: 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(255,255,255,0.01))',
               }}
             >
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -1136,7 +1195,12 @@ function AdminToolsModal({
         </div>
 
         <div className="card" style={{ padding: 16, borderRadius: 18, marginTop: 12 }}>
-          <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 8 }}>Regras de classificacao (prefixo/codigo)</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+            <div style={{ color: 'var(--text-primary)', fontWeight: 800 }}>Regras de classificacao (prefixo/codigo)</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11, borderRadius: 999, padding: '4px 10px', background: 'rgba(139,92,246,0.12)' }}>
+              {fmt(sortedRules.length)} regra(s)
+            </div>
+          </div>
           {!classificacaoRulesTableEnabled && (
             <div style={{ color: '#fb7185', fontSize: 12, marginBottom: 8 }}>
               A tabela <code>classificacao_regras</code> ainda nao existe no Supabase. Rode o SQL atualizado para habilitar cadastro/edicao.
@@ -1235,12 +1299,13 @@ function AdminToolsModal({
             <div
               key={rule.id}
               style={{
-                border: '1px solid var(--border)',
-                borderRadius: 10,
-                padding: 10,
+                border: '1px solid rgba(139,92,246,0.16)',
+                borderRadius: 14,
+                padding: 12,
                 marginTop: 8,
                 display: 'grid',
                 gap: 8,
+                background: 'rgba(255,255,255,0.015)',
               }}
             >
               <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
@@ -1274,8 +1339,11 @@ function AdminToolsModal({
         {activeSection === 'cadastros' && (
           <>
         <div className="card" style={{ padding: 16, borderRadius: 18 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-            <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Solicitacoes de cadastro</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ color: 'var(--text-primary)', fontWeight: 800 }}>Solicitacoes de cadastro</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Aprove, defina perfil e acompanhe a fila de entrada.</div>
+            </div>
             <button
               onClick={() => onRefreshPendingProfiles()}
               disabled={loadingPendingProfiles}
@@ -1312,18 +1380,19 @@ function AdminToolsModal({
               <div
                 key={pending.id}
                 style={{
-                  border: '1px solid var(--border)',
-                  borderRadius: 10,
-                  padding: 10,
+                  border: '1px solid rgba(16,185,129,0.18)',
+                  borderRadius: 14,
+                  padding: 12,
                   marginTop: 8,
                   display: 'grid',
                   gridTemplateColumns: 'minmax(0, 1fr)',
                   gap: 8,
                   alignItems: 'center',
+                  background: 'linear-gradient(135deg, rgba(16,185,129,0.07), rgba(255,255,255,0.01))',
                 }}
               >
                 <div>
-                  <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{pending.displayName || 'Sem nome'}</div>
+                  <div style={{ color: 'var(--text-primary)', fontWeight: 800 }}>{pending.displayName || 'Sem nome'}</div>
                   <div style={{ color: 'var(--text-muted)', fontSize: 11, wordBreak: 'break-all' }}>ID: {pending.id}</div>
                   <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>Solicitado em: {formatDateTime(pending.createdAt)}</div>
                 </div>
@@ -1364,10 +1433,16 @@ function AdminToolsModal({
         </div>
 
         <div className="card" style={{ padding: 16, borderRadius: 18, marginTop: 12 }}>
-          <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 8 }}>Gestao de operadores</div>
-          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
-            Adicione como operador usuarios ja cadastrados. Excluir operador remove o perfil operacional e volta para visualizador.
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ color: 'var(--text-primary)', fontWeight: 800 }}>Gestao de operadores</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Promova ou remova acesso operacional com mais clareza.</div>
+            </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11, borderRadius: 999, padding: '4px 10px', background: 'rgba(0,212,255,0.12)' }}>
+              {fmt(activeOperators.length)} ativo(s)
+            </div>
           </div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>Adicione como operador usuarios ja cadastrados. Excluir operador remove o perfil operacional e volta para visualizador.</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginBottom: 10 }}>
             <select
               value={operatorCandidateId}
@@ -1406,14 +1481,15 @@ function AdminToolsModal({
             <div
               key={operator.id}
                 style={{
-                  border: '1px solid var(--border)',
-                  borderRadius: 10,
-                  padding: 10,
+                  border: '1px solid rgba(0,212,255,0.18)',
+                  borderRadius: 14,
+                  padding: 12,
                   marginTop: 8,
                   display: 'grid',
                   gridTemplateColumns: 'minmax(0, 1fr)',
                   gap: 8,
                   alignItems: 'center',
+                  background: 'linear-gradient(135deg, rgba(0,212,255,0.06), rgba(255,255,255,0.01))',
                 }}
               >
               <div>
@@ -1444,8 +1520,11 @@ function AdminToolsModal({
 
         {activeSection === 'acessos' && (
         <div className="card" style={{ padding: 16, borderRadius: 18 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-            <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Permissoes de usuarios</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ color: 'var(--text-primary)', fontWeight: 800 }}>Permissoes de usuarios</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Controle de perfil, ativacao e administradores em uma lista mais legivel.</div>
+            </div>
             <button
               onClick={() => onRefreshManagedProfiles()}
               disabled={loadingManagedProfiles}
@@ -1513,16 +1592,19 @@ function AdminToolsModal({
                 <div
                   key={managed.id}
                   style={{
-                    border: '1px solid var(--border)',
-                    borderRadius: 10,
-                    padding: 10,
+                    border: `1px solid ${managed.active ? 'rgba(0,212,255,0.16)' : 'rgba(244,63,94,0.18)'}`,
+                    borderRadius: 14,
+                    padding: 12,
                     marginTop: 8,
                     display: 'grid',
                     gap: 8,
+                    background: managed.active
+                      ? 'linear-gradient(135deg, rgba(0,212,255,0.05), rgba(255,255,255,0.01))'
+                      : 'linear-gradient(135deg, rgba(244,63,94,0.08), rgba(255,255,255,0.01))',
                   }}
                 >
                   <div>
-                    <div style={{ color: 'var(--text-primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ color: 'var(--text-primary)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span>{managed.displayName || 'Sem nome'} {isSelf ? '(voce)' : ''}</span>
                       <span style={{ border: `1px solid ${roleStyle.border}`, borderRadius: 999, padding: '2px 8px', fontSize: 10, color: roleStyle.color, background: roleStyle.bg }}>
                         {roleLabel(managed.role)}
