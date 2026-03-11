@@ -10,6 +10,18 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.1.4] - 2026-03-10
+
+### Changed
+- Aba `Agenda` agora reconcilia os itens com a producao real por `prefixo + codigo`, refletindo os valores realizados de imagens, chapas e caixas na fila do dia.
+- Itens repetidos na agenda passam a consumir a producao correspondente de forma sequencial, evitando marcar tudo como concluido pelo primeiro registro encontrado.
+
+### Added
+- Registro de atraso na agenda com `motivo` e `observacao`, editavel pelo administrador para itens atrasados ou concluidos com atraso.
+
+### Infra
+- Schema Supabase atualizado com os campos `agenda_items.atraso_motivo` e `agenda_items.atraso_observacao`.
+
 ## [1.1.3] - 2026-03-10
 
 ### Changed

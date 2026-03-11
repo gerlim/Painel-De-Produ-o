@@ -96,12 +96,16 @@ create table if not exists public.agenda_items (
   qtd_imagens integer not null default 1,
   chapas_planejadas integer not null default 0,
   caixas_planejadas integer not null default 0,
+  atraso_motivo text,
+  atraso_observacao text,
   created_by uuid references auth.users(id),
   created_at timestamptz not null default now(),
   constraint agenda_items_unq_data_order unique (agenda_data, order_id)
 );
 
 alter table public.agenda_items add column if not exists data_referencia text;
+alter table public.agenda_items add column if not exists atraso_motivo text;
+alter table public.agenda_items add column if not exists atraso_observacao text;
 
 alter table public.pedidos add column if not exists mes text;
 alter table public.pedidos add column if not exists metros_lineares numeric not null default 0;

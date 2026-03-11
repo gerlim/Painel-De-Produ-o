@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import {
+  type AtrasoMotivo,
   parseTamanho,
   sanitizeLegacyPedido,
   toAgendaInsertRow,
@@ -106,6 +107,12 @@ interface UpdateOperadorReport {
 interface UpdateTamanhoReport {
   atualizados: number
   total: number
+}
+
+interface UpdateAgendaAtrasoInput {
+  agendaItemId: number
+  atrasoMotivo: AtrasoMotivo | null
+  atrasoObservacao: string | null
 }
 
 const TIPO_CAIXA_VALUES: TipoCaixa[] = ['Oitavada', 'Maleta', 'Quadrada', 'Flexo', 'Outro']
@@ -931,6 +938,30 @@ export function usePedidos() {
     await fetchClassificacaoRules()
   }
 
+  async function updateAgendaAtraso(input: UpdateAgendaAtrasoInput) {
+    if (!supabase) return
+    if (profile?.role !== 'admin') return
+    if (!Number.isFinite(input.agendaItemId) || input.agendaItemId <= 0) return
+
+    const { error } = await supabase
+      .from('agenda_items')
+      .update({
+        atraso_motivo: input.atrasoMotivo,
+        atraso_observacao: input.atrasoObservacao?.trim() || null,
+      })
+      .eq('id', input.agendaItemId)
+
+    if (error) {
+      const message = error.message.toLowerCase()
+      if (message.includes('column') && (message.includes('atraso_motivo') || message.includes('atraso_observacao'))) {
+        throw new Error('Campos de atraso nao encontrados. Rode o SQL atualizado do schema.')
+      }
+      throw new Error(error.message)
+    }
+
+    await fetchAgendaItems()
+  }
+
   async function migrateLegacyPedidos(): Promise<MigrationReport> {
     const legacy = getLegacyRaw()
     if (!legacy) return { inseridos: 0, duplicados: 0, falhas: 0, totalLocal: 0 }
@@ -1073,6 +1104,7 @@ export function usePedidos() {
     updateTamanhoNaoIdentificado,
     saveClassificacaoRegra,
     removeClassificacaoRegra,
+    updateAgendaAtraso,
     agendaTableEnabled,
     refreshAgendaItems: fetchAgendaItems,
     refreshClassificacaoRules: fetchClassificacaoRules,

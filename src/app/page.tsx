@@ -19,6 +19,7 @@ import {
   YAxis,
 } from 'recharts'
 import {
+  type AtrasoMotivo,
   type AgendaItem,
   calcKPIs,
   formatStatusLabel,
@@ -54,6 +55,14 @@ import ThemeModeControl from '@/components/ThemeModeControl'
 type TabId = 'resumo' | 'agenda' | 'dinamica' | 'produtos' | 'pedidos' | 'operadores'
 type AgendaStatus = 'pendente' | 'concluido' | 'atrasado' | 'concluido_atrasado'
 
+type AgendaResolvedItem = AgendaItem & {
+  status: AgendaStatus
+  producedAt: string
+  qtdImagensRealizadas: number
+  chapasRealizadas: number
+  caixasRealizadas: number
+}
+
 const CHART_TOOLTIP_CONTENT_STYLE = {
   background: '#0f1d31',
   border: '1px solid rgba(255,255,255,0.22)',
@@ -69,6 +78,13 @@ const CHART_TOOLTIP_LABEL_STYLE = {
 const CHART_TOOLTIP_ITEM_STYLE = {
   color: '#e8eef8',
 }
+
+const ATRASO_MOTIVO_OPTIONS: Array<{ value: AtrasoMotivo; label: string }> = [
+  { value: 'falta_material', label: 'Falta de material' },
+  { value: 'falta_ordem_producao', label: 'Falta de ordem de producao' },
+  { value: 'autorizacao_ctp', label: 'Autorizacao CTP' },
+  { value: 'outros', label: 'Outros' },
+]
 
 function toIsoDate(datePtBr: string) {
   const [dd, mm, yyyy] = datePtBr.split('/')
@@ -124,6 +140,75 @@ function agendaStatusColors(status: AgendaStatus) {
   if (status === 'concluido_atrasado') return { bg: 'rgba(245,158,11,0.14)', border: 'rgba(245,158,11,0.32)', color: '#fbbf24' }
   if (status === 'atrasado') return { bg: 'rgba(244,63,94,0.14)', border: 'rgba(244,63,94,0.32)', color: '#fb7185' }
   return { bg: 'rgba(59,130,246,0.14)', border: 'rgba(59,130,246,0.32)', color: '#93c5fd' }
+}
+
+function atrasoMotivoLabel(value: AtrasoMotivo | null) {
+  return ATRASO_MOTIVO_OPTIONS.find((item) => item.value === value)?.label || 'Sem motivo'
+}
+
+function reconcileAgendaRows(agendaItems: AgendaItem[], pedidos: Pedido[], selectedDate: string): AgendaResolvedItem[] {
+  const serviceRows = soServicos(pedidos)
+    .filter((pedido) => comparePtDates(pedido.data, selectedDate) <= 0)
+    .sort((a, b) => comparePtDates(a.data, b.data))
+
+  const producedPools = new Map<string, Array<Pedido & { remainingChapas: number }>>()
+  serviceRows.forEach((pedido) => {
+    const key = codigoComPrefixo(pedido.prefixo, pedido.codigo)
+    const current = producedPools.get(key) || []
+    current.push({ ...pedido, remainingChapas: Math.max(0, pedido.chapasImpressas) })
+    producedPools.set(key, current)
+  })
+
+  return agendaItems
+    .filter((item) => comparePtDates(item.agendaData, selectedDate) <= 0)
+    .sort((a, b) => {
+      const dateCmp = comparePtDates(a.agendaData, b.agendaData)
+      if (dateCmp !== 0) return dateCmp
+      return codigoComPrefixo(a.prefixo, a.codigo).localeCompare(codigoComPrefixo(b.prefixo, b.codigo))
+    })
+    .map((item) => {
+      const key = codigoComPrefixo(item.prefixo, item.codigo)
+      const pool = producedPools.get(key) || []
+      let remainingChapas = Math.max(0, item.chapasPlanejadas)
+      let chapasRealizadas = 0
+      let caixasRealizadas = 0
+      let qtdImagensRealizadas = 0
+      let producedAt = ''
+
+      for (const pedido of pool) {
+        if (remainingChapas <= 0) break
+        if (pedido.remainingChapas <= 0) continue
+
+        const usedChapas = Math.min(pedido.remainingChapas, remainingChapas)
+        if (usedChapas <= 0) continue
+
+        pedido.remainingChapas -= usedChapas
+        remainingChapas -= usedChapas
+        chapasRealizadas += usedChapas
+        caixasRealizadas += usedChapas * Math.max(1, pedido.qtdImagens)
+        if (!qtdImagensRealizadas) qtdImagensRealizadas = Math.max(1, pedido.qtdImagens)
+        producedAt = pedido.data
+      }
+
+      const hasProduction = chapasRealizadas > 0 || caixasRealizadas > 0
+      const isConcluido = item.chapasPlanejadas > 0 ? chapasRealizadas >= item.chapasPlanejadas : hasProduction
+      let status: AgendaStatus = 'pendente'
+
+      if (isConcluido && producedAt) {
+        status = comparePtDates(producedAt, item.agendaData) > 0 ? 'concluido_atrasado' : 'concluido'
+      } else if (comparePtDates(item.agendaData, selectedDate) < 0) {
+        status = 'atrasado'
+      }
+
+      return {
+        ...item,
+        status,
+        producedAt,
+        qtdImagensRealizadas: hasProduction ? qtdImagensRealizadas || item.qtdImagens : 0,
+        chapasRealizadas,
+        caixasRealizadas,
+      }
+    })
 }
 
 function roleLabel(role: UserRole) {
@@ -1582,16 +1667,20 @@ function AgendaTab({
   agendaTableEnabled,
   isAdmin,
   onOpenImport,
+  onSaveAtraso,
 }: {
   agendaItems: AgendaItem[]
   pedidos: Pedido[]
   agendaTableEnabled: boolean
   isAdmin: boolean
   onOpenImport: () => void
+  onSaveAtraso: (agendaItemId: number, atrasoMotivo: AtrasoMotivo | null, atrasoObservacao: string | null) => Promise<void>
 }) {
   const importedDates = Array.from(new Set(agendaItems.map((item) => item.agendaData)))
     .sort((a, b) => comparePtDates(a, b))
   const [selectedDateIso, setSelectedDateIso] = useState(importedDates.length ? toIsoDate(importedDates[importedDates.length - 1]) : todayIsoDate())
+  const [atrasoForms, setAtrasoForms] = useState<Record<number, { motivo: AtrasoMotivo | ''; observacao: string }>>({})
+  const [savingAtrasoId, setSavingAtrasoId] = useState(0)
 
   useEffect(() => {
     if (!importedDates.length) {
@@ -1600,34 +1689,7 @@ function AgendaTab({
   }, [importedDates])
 
   const selectedDate = fromIsoDate(selectedDateIso)
-  const servicos = soServicos(pedidos)
-  const producedByOrder = new Map<string, Pedido>()
-  ;[...servicos]
-    .sort((a, b) => comparePtDates(a.data, b.data))
-    .forEach((pedido) => {
-      const key = codigoComPrefixo(pedido.prefixo, pedido.codigo)
-      if (!producedByOrder.has(key)) producedByOrder.set(key, pedido)
-    })
-
-  const agendaRows = agendaItems
-    .filter((item) => comparePtDates(item.agendaData, selectedDate) <= 0)
-    .map((item) => {
-      const produced = producedByOrder.get(codigoComPrefixo(item.prefixo, item.codigo))
-      const producedUntilSelected = produced && comparePtDates(produced.data, selectedDate) <= 0 ? produced : null
-      let status: AgendaStatus = 'pendente'
-
-      if (producedUntilSelected) {
-        status = comparePtDates(producedUntilSelected.data, item.agendaData) > 0 ? 'concluido_atrasado' : 'concluido'
-      } else if (comparePtDates(item.agendaData, selectedDate) < 0) {
-        status = 'atrasado'
-      }
-
-      return {
-        ...item,
-        status,
-        producedAt: producedUntilSelected?.data || '',
-      }
-    })
+  const agendaRows = reconcileAgendaRows(agendaItems, pedidos, selectedDate)
     .filter((item) => item.status === 'pendente' || item.status === 'atrasado' || item.producedAt === selectedDate)
     .sort((a, b) => {
       const priority: Record<AgendaStatus, number> = {
@@ -1651,6 +1713,32 @@ function AgendaTab({
   const programadosHoje = agendaRows.filter((item) => item.agendaData === selectedDate).length
   const carregadosDeAtraso = agendaRows.filter((item) => comparePtDates(item.agendaData, selectedDate) < 0).length
   const concluidosHoje = agendaRows.filter((item) => item.producedAt === selectedDate).length
+  const atrasoRows = agendaRows.filter((item) => item.status === 'atrasado' || item.status === 'concluido_atrasado')
+
+  useEffect(() => {
+    setAtrasoForms((current) => {
+      const next = { ...current }
+      atrasoRows.forEach((item) => {
+        if (!item.id) return
+        next[item.id] = next[item.id] || {
+          motivo: item.atrasoMotivo || '',
+          observacao: item.atrasoObservacao || '',
+        }
+      })
+      return next
+    })
+  }, [atrasoRows])
+
+  async function handleSaveAtraso(item: AgendaResolvedItem) {
+    if (!item.id) return
+    const form = atrasoForms[item.id] || { motivo: item.atrasoMotivo || '', observacao: item.atrasoObservacao || '' }
+    setSavingAtrasoId(item.id)
+    try {
+      await onSaveAtraso(item.id, (form.motivo || null) as AtrasoMotivo | null, form.observacao || null)
+    } finally {
+      setSavingAtrasoId(0)
+    }
+  }
 
   if (!agendaTableEnabled) {
     return (
@@ -1722,11 +1810,17 @@ function AgendaTab({
 
       <TableCard title="Status da Agenda">
         <div className="mobile-h-scroll">
-          <table className="data-table" style={{ minWidth: 1100 }}>
-            <thead><tr><th>Agenda</th><th>Ref.</th><th>Status</th><th>Conclusao</th><th>Cliente</th><th>Prefixo + Codigo</th><th>Tam</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Imgs</th><th style={{ textAlign: 'right' }}>Chapas</th><th style={{ textAlign: 'right' }}>Caixas</th></tr></thead>
+          <table className="data-table" style={{ minWidth: 1180 }}>
+            <thead><tr><th>Agenda</th><th>Ref.</th><th>Status</th><th>Conclusao</th><th>Cliente</th><th>Prefixo + Codigo</th><th>Tam</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Imgs</th><th style={{ textAlign: 'right' }}>Chapas</th><th style={{ textAlign: 'right' }}>Caixas</th><th>Motivo</th></tr></thead>
             <tbody>
               {agendaRows.map((item, index) => {
                 const statusStyle = agendaStatusColors(item.status)
+                const exibirImgs = item.qtdImagensRealizadas || item.qtdImagens
+                const exibirChapas = item.chapasRealizadas || item.chapasPlanejadas
+                const exibirCaixas = item.caixasRealizadas || item.caixasPlanejadas
+                const mudouImgs = item.qtdImagensRealizadas > 0 && item.qtdImagensRealizadas !== item.qtdImagens
+                const mudouChapas = item.chapasRealizadas > 0 && item.chapasRealizadas !== item.chapasPlanejadas
+                const mudouCaixas = item.caixasRealizadas > 0 && item.caixasRealizadas !== item.caixasPlanejadas
                 return (
                   <tr key={`${item.agendaData}-${item.orderID}-${index}`}>
                     <td>{item.agendaData}</td>
@@ -1741,9 +1835,19 @@ function AgendaTab({
                     <td>{codigoComPrefixo(item.prefixo, item.codigo)}</td>
                     <td>{tamanhoRotulo(item.tamanhoCm)}</td>
                     <td>{item.tipoCaixa}</td>
-                    <td style={{ textAlign: 'right' }}>{fmt(item.qtdImagens)}</td>
-                    <td style={{ textAlign: 'right' }}>{fmt(item.chapasPlanejadas)}</td>
-                    <td style={{ textAlign: 'right' }}>{fmt(item.caixasPlanejadas)}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div>{fmt(exibirImgs)}</div>
+                      {mudouImgs && <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>plan. {fmt(item.qtdImagens)}</div>}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div>{fmt(exibirChapas)}</div>
+                      {mudouChapas && <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>plan. {fmt(item.chapasPlanejadas)}</div>}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div>{fmt(exibirCaixas)}</div>
+                      {mudouCaixas && <div style={{ color: 'var(--text-muted)', fontSize: 10 }}>plan. {fmt(item.caixasPlanejadas)}</div>}
+                    </td>
+                    <td>{item.atrasoMotivo ? atrasoMotivoLabel(item.atrasoMotivo) : '-'}</td>
                   </tr>
                 )
               })}
@@ -1751,6 +1855,78 @@ function AgendaTab({
           </table>
         </div>
       </TableCard>
+
+      {isAdmin && atrasoRows.length > 0 && (
+        <TableCard title="Observacoes de Atraso">
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 10 }}>
+            Registre o motivo do atraso para acompanhar pendencias e conclusoes fora da data prevista.
+          </div>
+          <div style={{ display: 'grid', gap: 10 }}>
+            {atrasoRows.map((item) => {
+              const form = atrasoForms[item.id || 0] || { motivo: item.atrasoMotivo || '', observacao: item.atrasoObservacao || '' }
+              return (
+                <div key={`delay-${item.id || item.orderID}-${item.agendaData}`} className="card" style={{ padding: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                    <div>
+                      <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{codigoComPrefixo(item.prefixo, item.codigo)} - {item.nomeCliente}</div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                        Agenda {item.agendaData} | Status {agendaStatusLabel(item.status)} {item.producedAt ? `| Conclusao ${item.producedAt}` : ''}
+                      </div>
+                    </div>
+                    <span style={{ border: `1px solid ${agendaStatusColors(item.status).border}`, borderRadius: 999, padding: '2px 8px', fontSize: 10, color: agendaStatusColors(item.status).color, background: agendaStatusColors(item.status).bg }}>
+                      {agendaStatusLabel(item.status)}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 220px) 1fr auto', gap: 8, alignItems: 'start' }}>
+                    <select
+                      value={form.motivo}
+                      onChange={(event) =>
+                        setAtrasoForms((current) => ({
+                          ...current,
+                          [item.id || 0]: {
+                            motivo: event.target.value as AtrasoMotivo | '',
+                            observacao: current[item.id || 0]?.observacao ?? form.observacao,
+                          },
+                        }))
+                      }
+                      style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }}
+                    >
+                      <option value="">Selecionar motivo</option>
+                      {ATRASO_MOTIVO_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+
+                    <input
+                      value={form.observacao}
+                      onChange={(event) =>
+                        setAtrasoForms((current) => ({
+                          ...current,
+                          [item.id || 0]: {
+                            motivo: current[item.id || 0]?.motivo ?? form.motivo,
+                            observacao: event.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="Observacao complementar do atraso"
+                      style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }}
+                    />
+
+                    <button
+                      onClick={() => handleSaveAtraso(item)}
+                      disabled={!item.id || savingAtrasoId === item.id}
+                      style={{ border: 'none', borderRadius: 8, background: 'var(--cyan)', color: '#00131b', padding: '8px 12px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      {savingAtrasoId === item.id ? 'Salvando...' : 'Salvar'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </TableCard>
+      )}
 
       {totalAgenda > 0 && pendentes === 0 && atrasados === 0 && (
         <div className="card" style={{ padding: 12 }}>
@@ -1986,6 +2162,7 @@ export default function App() {
     classificacaoRulesTableEnabled,
     saveClassificacaoRegra,
     removeClassificacaoRegra,
+    updateAgendaAtraso,
   } = usePedidos()
   const [tab, setTab] = useState<TabId>('resumo')
   const [modal, setModal] = useState(false)
@@ -2120,6 +2297,11 @@ export default function App() {
     showToast('Regra removida com sucesso')
   }
 
+  async function onSaveAgendaAtraso(agendaItemId: number, atrasoMotivo: AtrasoMotivo | null, atrasoObservacao: string | null) {
+    await updateAgendaAtraso({ agendaItemId, atrasoMotivo, atrasoObservacao })
+    showToast('Observacao de atraso salva com sucesso')
+  }
+
   async function onApprovePendingProfile(profileId: string, role: UserRole) {
     setApprovingProfileId(profileId)
     try {
@@ -2248,7 +2430,16 @@ export default function App() {
       )}
 
       {activeTab === 'resumo' && <ResumoTab pedidos={pedidos} isAdmin={isAdmin} />}
-      {activeTab === 'agenda' && <AgendaTab agendaItems={agendaItems} pedidos={pedidos} agendaTableEnabled={agendaTableEnabled} isAdmin={isAdmin} onOpenImport={() => setAgendaModal(true)} />}
+      {activeTab === 'agenda' && (
+        <AgendaTab
+          agendaItems={agendaItems}
+          pedidos={pedidos}
+          agendaTableEnabled={agendaTableEnabled}
+          isAdmin={isAdmin}
+          onOpenImport={() => setAgendaModal(true)}
+          onSaveAtraso={onSaveAgendaAtraso}
+        />
+      )}
       {activeTab === 'dinamica' && <DinamicaTab pedidos={pedidos} />}
       {activeTab === 'produtos' && <ProdutosTab pedidos={pedidos} />}
       {activeTab === 'pedidos' && <PedidosTab pedidos={pedidos} />}

@@ -3,6 +3,7 @@
 export type TipoCaixa = 'Oitavada' | 'Maleta' | 'Quadrada' | 'Flexo' | 'Outro'
 export type StatusPedido = 'SERVICO' | 'TESTE'
 export type TamanhoValor = number | string | null
+export type AtrasoMotivo = 'falta_material' | 'falta_ordem_producao' | 'autorizacao_ctp' | 'outros'
 
 export const STATUS_SERVICO: StatusPedido = 'SERVICO'
 export const STATUS_TESTE: StatusPedido = 'TESTE'
@@ -66,6 +67,8 @@ export interface AgendaItem {
   qtdImagens: number
   chapasPlanejadas: number
   caixasPlanejadas: number
+  atrasoMotivo: AtrasoMotivo | null
+  atrasoObservacao: string | null
 }
 
 export interface KPIs {
@@ -688,6 +691,8 @@ export function agendaFromPedidos(pedidos: Pedido[], agendaData: string): Agenda
     qtdImagens: pedido.qtdImagens,
     chapasPlanejadas: pedido.chapasImpressas,
     caixasPlanejadas: pedido.caixasProduzidas,
+    atrasoMotivo: null,
+    atrasoObservacao: null,
   }))
 }
 
@@ -711,6 +716,8 @@ export function toAgendaItem(row: Record<string, unknown>): AgendaItem {
     qtdImagens: Math.trunc(parseNumber(row.qtd_imagens)),
     chapasPlanejadas: Math.trunc(parseNumber(row.chapas_planejadas)),
     caixasPlanejadas: Math.trunc(parseNumber(row.caixas_planejadas)),
+    atrasoMotivo: stringOrNull(row.atraso_motivo) as AtrasoMotivo | null,
+    atrasoObservacao: stringOrNull(row.atraso_observacao),
   }
 }
 
@@ -733,6 +740,8 @@ export function toAgendaInsertRow(
     qtd_imagens: item.qtdImagens,
     chapas_planejadas: item.chapasPlanejadas,
     caixas_planejadas: item.caixasPlanejadas,
+    atraso_motivo: item.atrasoMotivo,
+    atraso_observacao: item.atrasoObservacao,
     created_by: createdBy || null,
   }
   if (includeMes) row.mes = item.mes || mesFromData(item.agendaData)
@@ -801,6 +810,8 @@ export async function lerArquivoAgenda(file: File, fallbackAgendaData = ''): Pro
       qtdImagens: parsed.qtdImagens || 1,
       chapasPlanejadas: quantidade,
       caixasPlanejadas: quantidade * (parsed.qtdImagens || 1),
+      atrasoMotivo: null,
+      atrasoObservacao: null,
     })
   }
 
