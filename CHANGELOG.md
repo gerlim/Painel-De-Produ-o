@@ -10,6 +10,12 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.1.10] - 2026-03-10
+
+### Changed
+- Area de `Gestao` reorganizada em secoes internas (`Dados`, `Classificacao`, `Cadastros` e `Acessos`) para reduzir empilhamento de cards e melhorar leitura.
+- Modal administrativo ampliado com cabecalho fixo, cards de resumo e navegacao direta entre grupos de ferramentas.
+
 ## [1.1.9] - 2026-03-10
 
 ### Changed

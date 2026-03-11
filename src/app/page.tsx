@@ -566,6 +566,7 @@ function AdminToolsModal({
   const [loadingOp, setLoadingOp] = useState(false)
   const [loadingUnknownKey, setLoadingUnknownKey] = useState('')
   const [error, setError] = useState('')
+  const [activeSection, setActiveSection] = useState<'dados' | 'classificacao' | 'cadastros' | 'acessos'>('dados')
 
   useEffect(() => {
     setPendingRoles((current) => {
@@ -836,6 +837,25 @@ function AdminToolsModal({
     return a.matchValue.localeCompare(b.matchValue, 'pt-BR')
   })
 
+  const summaryCards = [
+    { key: 'pendentes', label: 'Cadastros pendentes', value: fmt(filteredPendingProfiles.length), hint: 'Aguardando aprovacao' },
+    { key: 'operadores', label: 'Operadores ativos', value: fmt(activeOperators.length), hint: 'Com acesso operacional' },
+    { key: 'tamanhos', label: 'Tamanhos nao identificados', value: fmt(unknownSizes.length), hint: 'Precisam de correcao' },
+    {
+      key: 'regras',
+      label: 'Regras de classificacao',
+      value: fmt(sortedRules.length),
+      hint: classificacaoRulesTableEnabled ? 'Ativas no banco' : 'Tabela ainda nao criada',
+    },
+  ]
+
+  const sectionMeta: Array<{ id: 'dados' | 'classificacao' | 'cadastros' | 'acessos'; label: string; hint: string; count: string }> = [
+    { id: 'dados', label: 'Dados', hint: 'Limpeza, operador e correcoes', count: `${fmt(unknownSizes.length)} pendencias` },
+    { id: 'classificacao', label: 'Classificacao', hint: 'Modelos e regras automaticas', count: `${fmt(unknownModels.length)} itens` },
+    { id: 'cadastros', label: 'Cadastros', hint: 'Solicitacoes e operadores', count: `${fmt(filteredPendingProfiles.length)} aguardando` },
+    { id: 'acessos', label: 'Acessos', hint: 'Perfis, papeis e ativacao', count: `${fmt(filteredManagedProfiles.length)} usuarios` },
+  ]
+
   return (
     <div
       style={{
@@ -853,22 +873,109 @@ function AdminToolsModal({
         className="card"
         style={{
           width: '100%',
-          maxWidth: 700,
-          borderRadius: 16,
-          padding: 12,
+          maxWidth: 1160,
+          minHeight: 'calc(100dvh - 20px)',
+          borderRadius: 24,
+          padding: 18,
           margin: '0 auto',
           maxHeight: 'calc(100dvh - 20px)',
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch',
+          boxShadow: '0 28px 80px rgba(0,0,0,0.45)',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, position: 'sticky', top: 0, background: 'rgba(19,29,45,0.95)', paddingBottom: 8, zIndex: 2 }}>
-          <div style={{ color: 'var(--cyan)', fontFamily: 'var(--font-display)', fontSize: 'clamp(16px, 5vw, 22px)', letterSpacing: '0.04em' }}>GESTAO DE DADOS</div>
-          <button onClick={onClose} style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={18} /></button>
+        <div
+          style={{
+            display: 'grid',
+            gap: 14,
+            margin: '-18px -18px 18px',
+            padding: '18px 18px 14px',
+            position: 'sticky',
+            top: -18,
+            background: 'linear-gradient(180deg, rgba(19,29,45,0.98) 0%, rgba(19,29,45,0.94) 78%, rgba(19,29,45,0.72) 100%)',
+            backdropFilter: 'blur(12px)',
+            borderBottom: '1px solid var(--border)',
+            zIndex: 4,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+            <div>
+              <div style={{ color: 'var(--cyan)', fontFamily: 'var(--font-display)', fontSize: 'clamp(22px, 5vw, 34px)', letterSpacing: '0.05em', lineHeight: 1 }}>GESTAO DE DADOS</div>
+              <div style={{ color: 'var(--text-muted)', marginTop: 8, fontSize: 13, maxWidth: 640 }}>
+                Painel administrativo reorganizado para revisar acessos, corrigir dados e manter classificacoes sem amontoar tudo em uma unica caixa pequena.
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                border: '1px solid var(--border)',
+                background: 'var(--ink-700)',
+                color: 'var(--text-primary)',
+                borderRadius: 12,
+                width: 40,
+                height: 40,
+                display: 'grid',
+                placeItems: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+            {summaryCards.map((card) => (
+              <div
+                key={card.key}
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 16,
+                  padding: '14px 14px 12px',
+                  background: 'linear-gradient(135deg, rgba(0,212,255,0.08), rgba(255,255,255,0.02))',
+                }}
+              >
+                <div style={{ color: 'var(--text-muted)', fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>{card.label}</div>
+                <div style={{ color: 'var(--text-primary)', fontSize: 26, fontWeight: 800, lineHeight: 1, marginBottom: 6 }}>{card.value}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{card.hint}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+            {sectionMeta.map((section) => {
+              const active = activeSection === section.id
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveSection(section.id)}
+                  style={{
+                    border: active ? '1px solid rgba(0,212,255,0.35)' : '1px solid var(--border)',
+                    background: active ? 'rgba(0,212,255,0.12)' : 'var(--ink-700)',
+                    color: 'var(--text-primary)',
+                    borderRadius: 16,
+                    padding: '12px 14px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontWeight: 800 }}>{section.label}</span>
+                    <span style={{ color: active ? 'var(--cyan)' : 'var(--text-muted)', fontSize: 11 }}>{section.count}</span>
+                  </div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{section.hint}</div>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
-        <div className="card" style={{ padding: 12, marginBottom: 10 }}>
+        {error && <div style={{ marginBottom: 12, color: '#fb7185', fontSize: 12 }}>{error}</div>}
+
+        {activeSection === 'dados' && (
+          <>
+        <div className="card" style={{ padding: 16, borderRadius: 18, marginBottom: 12 }}>
           <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 8 }}>Limpar por periodo</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
             <input type="date" value={clearDate} onChange={(e) => setClearDate(e.target.value)} style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: 10 }} />
@@ -903,7 +1010,7 @@ function AdminToolsModal({
           </button>
         </div>
 
-        <div className="card" style={{ padding: 12, marginTop: 10 }}>
+        <div className="card" style={{ padding: 16, borderRadius: 18, marginTop: 12 }}>
           <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 8 }}>Tamanhos nao identificados</div>
           <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
             Corrija tamanhos fora do padrao para um valor reconhecido (ex.: <code>35</code> ou <code>35x4</code>).
@@ -963,7 +1070,12 @@ function AdminToolsModal({
           ))}
         </div>
 
-        <div className="card" style={{ padding: 12, marginTop: 10 }}>
+          </>
+        )}
+
+        {activeSection === 'classificacao' && (
+          <>
+        <div className="card" style={{ padding: 12 }}>
           <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 8 }}>Modelos/prefixos para classificar</div>
           <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
             Itens com tipo <code>Outro</code> ou tamanho nao identificado. Use os atalhos para preencher a regra.
@@ -1023,7 +1135,7 @@ function AdminToolsModal({
           ))}
         </div>
 
-        <div className="card" style={{ padding: 12, marginTop: 10 }}>
+        <div className="card" style={{ padding: 16, borderRadius: 18, marginTop: 12 }}>
           <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 8 }}>Regras de classificacao (prefixo/codigo)</div>
           {!classificacaoRulesTableEnabled && (
             <div style={{ color: '#fb7185', fontSize: 12, marginBottom: 8 }}>
@@ -1156,7 +1268,12 @@ function AdminToolsModal({
           ))}
         </div>
 
-        <div className="card" style={{ padding: 12, marginTop: 10 }}>
+          </>
+        )}
+
+        {activeSection === 'cadastros' && (
+          <>
+        <div className="card" style={{ padding: 16, borderRadius: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
             <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Solicitacoes de cadastro</div>
             <button
@@ -1246,7 +1363,7 @@ function AdminToolsModal({
             ))}
         </div>
 
-        <div className="card" style={{ padding: 12, marginTop: 10 }}>
+        <div className="card" style={{ padding: 16, borderRadius: 18, marginTop: 12 }}>
           <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 8 }}>Gestao de operadores</div>
           <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
             Adicione como operador usuarios ja cadastrados. Excluir operador remove o perfil operacional e volta para visualizador.
@@ -1322,7 +1439,11 @@ function AdminToolsModal({
           ))}
         </div>
 
-        <div className="card" style={{ padding: 12, marginTop: 10 }}>
+          </>
+        )}
+
+        {activeSection === 'acessos' && (
+        <div className="card" style={{ padding: 16, borderRadius: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
             <div style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Permissoes de usuarios</div>
             <button
@@ -1475,8 +1596,7 @@ function AdminToolsModal({
               )
             })}
         </div>
-
-        {error && <div style={{ marginTop: 10, color: '#fb7185', fontSize: 12 }}>{error}</div>}
+        )}
       </div>
     </div>
   )
