@@ -15,6 +15,7 @@ Principais recursos:
 - KPIs com separacao correta entre servicos e testes
 - exportacao CSV da listagem filtrada
 - ferramentas administrativas (gestao de acesso, limpeza por periodo, ajustes de operador, tamanhos nao identificados e regras de classificacao por prefixo/codigo)
+- aba de agenda diaria com comparativo entre planejado e realizado
 - comandos remotos via WhatsApp Cloud API (admin)
 
 ## Stack
@@ -80,7 +81,7 @@ Aplicacao local: `http://localhost:3000`
 
 ## Versionamento
 
-- versao atual: `v1.0.8`
+- versao atual: `v1.1.0`
 - arquivo de historico: `CHANGELOG.md`
 - padrao adotado: SemVer (`MAJOR.MINOR.PATCH`)
 

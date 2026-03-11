@@ -47,6 +47,25 @@ export interface Pedido {
   custoTinta: number
 }
 
+export interface AgendaItem {
+  id?: number
+  createdAt?: string
+  createdBy?: string | null
+  agendaData: string
+  mes: string
+  orderID: string
+  prefixo: string
+  codigo: string
+  nomeCliente: string
+  tamanhoCm: TamanhoValor
+  tipoCaixa: TipoCaixa
+  pecaUnica: boolean
+  maquinaImp: string | null
+  qtdImagens: number
+  chapasPlanejadas: number
+  caixasPlanejadas: number
+}
+
 export interface KPIs {
   totalPedidos: number
   totalChapas: number
@@ -636,6 +655,70 @@ export function toPedidoInsertRow(
     created_by: createdBy || null,
   }
   if (includeMes) row.mes = pedido.mes || mesFromData(pedido.data)
+  return row
+}
+
+export function agendaFromPedidos(pedidos: Pedido[], agendaData: string): AgendaItem[] {
+  return pedidos.map((pedido) => ({
+    agendaData,
+    mes: mesFromData(agendaData),
+    orderID: pedido.orderID,
+    prefixo: pedido.prefixo,
+    codigo: pedido.codigo,
+    nomeCliente: pedido.nomeCliente,
+    tamanhoCm: pedido.tamanhoCm,
+    tipoCaixa: pedido.tipoCaixa,
+    pecaUnica: pedido.pecaUnica,
+    maquinaImp: pedido.maquinaImp,
+    qtdImagens: pedido.qtdImagens,
+    chapasPlanejadas: pedido.chapasImpressas,
+    caixasPlanejadas: pedido.caixasProduzidas,
+  }))
+}
+
+export function toAgendaItem(row: Record<string, unknown>): AgendaItem {
+  const agendaData = stringOrNull(row.agenda_data) || ''
+  return {
+    id: typeof row.id === 'number' ? row.id : undefined,
+    createdAt: stringOrNull(row.created_at) || undefined,
+    createdBy: stringOrNull(row.created_by),
+    agendaData,
+    mes: normalizeMes(row.mes) || mesFromData(agendaData),
+    orderID: stringOrNull(row.order_id) || '',
+    prefixo: stringOrNull(row.prefixo) || '',
+    codigo: stringOrNull(row.codigo) || '',
+    nomeCliente: stringOrNull(row.nome_cliente) || '',
+    tamanhoCm: parseTamanho(row.tamanho_cm),
+    tipoCaixa: parseTipoCaixa(row.tipo_caixa) || 'Outro',
+    pecaUnica: Boolean(row.peca_unica),
+    maquinaImp: stringOrNull(row.maquina_impressao),
+    qtdImagens: Math.trunc(parseNumber(row.qtd_imagens)),
+    chapasPlanejadas: Math.trunc(parseNumber(row.chapas_planejadas)),
+    caixasPlanejadas: Math.trunc(parseNumber(row.caixas_planejadas)),
+  }
+}
+
+export function toAgendaInsertRow(
+  item: AgendaItem,
+  createdBy?: string | null,
+  includeMes = true,
+): Record<string, unknown> {
+  const row: Record<string, unknown> = {
+    agenda_data: item.agendaData,
+    order_id: item.orderID,
+    prefixo: item.prefixo,
+    codigo: item.codigo,
+    nome_cliente: item.nomeCliente,
+    tamanho_cm: item.tamanhoCm == null ? null : String(item.tamanhoCm),
+    tipo_caixa: item.tipoCaixa,
+    peca_unica: item.pecaUnica,
+    maquina_impressao: item.maquinaImp,
+    qtd_imagens: item.qtdImagens,
+    chapas_planejadas: item.chapasPlanejadas,
+    caixas_planejadas: item.caixasPlanejadas,
+    created_by: createdBy || null,
+  }
+  if (includeMes) row.mes = item.mes || mesFromData(item.agendaData)
   return row
 }
 

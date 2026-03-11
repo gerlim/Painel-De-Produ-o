@@ -3,10 +3,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import {
+  agendaFromPedidos,
   parseTamanho,
   sanitizeLegacyPedido,
+  toAgendaInsertRow,
+  toAgendaItem,
   toPedido,
   toPedidoInsertRow,
+  type AgendaItem,
   type Pedido,
   type StatusPedido,
   type TipoCaixa,
@@ -73,6 +77,11 @@ export interface SaveClassificacaoRegraReport {
 }
 
 interface AddPedidosResult {
+  adicionados: number
+  duplicatas: number
+}
+
+interface AddAgendaResult {
   adicionados: number
   duplicatas: number
 }
@@ -339,9 +348,12 @@ export function usePedidos() {
   const supabase = getSupabaseBrowserClient()
   const supabaseEnabled = Boolean(supabase)
   const [pedidos, setPedidos] = useState<Pedido[]>([])
+  const [agendaItems, setAgendaItems] = useState<AgendaItem[]>([])
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [hasMesColumn, setHasMesColumn] = useState<boolean>(true)
+  const [agendaTableEnabled, setAgendaTableEnabled] = useState<boolean>(true)
+  const [agendaHasMesColumn, setAgendaHasMesColumn] = useState<boolean>(true)
   const [classificacaoRules, setClassificacaoRules] = useState<ClassificacaoRegra[]>([])
   const [classificacaoRulesTableEnabled, setClassificacaoRulesTableEnabled] = useState<boolean>(true)
   const [loaded, setLoaded] = useState(false)
@@ -359,6 +371,25 @@ export function usePedidos() {
     const missingColumn = message.includes('column') && message.includes('mes')
     setHasMesColumn(!missingColumn)
     return !missingColumn
+  }
+
+  async function detectAgendaColumns() {
+    if (!supabase) return false
+    const { error } = await supabase.from('agenda_items').select('mes').limit(1)
+    if (!error) {
+      setAgendaTableEnabled(true)
+      setAgendaHasMesColumn(true)
+      return true
+    }
+    const message = error.message.toLowerCase()
+    if (isMissingRelationError(message)) {
+      setAgendaTableEnabled(false)
+      return false
+    }
+    const missingMes = message.includes('column') && message.includes('mes')
+    setAgendaTableEnabled(true)
+    setAgendaHasMesColumn(!missingMes)
+    return true
   }
 
   async function fetchProfile(userId: string): Promise<UserProfile | null> {
@@ -400,6 +431,32 @@ export function usePedidos() {
     setPedidos(sortPedidos(parsed))
   }
 
+  async function fetchAgendaItems() {
+    if (!supabase) {
+      setAgendaItems([])
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('agenda_items')
+      .select('*')
+      .order('agenda_data', { ascending: true })
+      .order('order_id', { ascending: true })
+
+    if (error) {
+      if (isMissingRelationError(error.message)) {
+        setAgendaTableEnabled(false)
+        setAgendaItems([])
+        return
+      }
+      throw new Error(error.message)
+    }
+
+    setAgendaTableEnabled(true)
+    const parsed = (data || []).map((row) => toAgendaItem(row as Record<string, unknown>))
+    setAgendaItems(parsed)
+  }
+
   async function fetchClassificacaoRules() {
     if (!supabase) {
       setClassificacaoRules([])
@@ -433,6 +490,7 @@ export function usePedidos() {
     if (!currentSession?.user) {
       setProfile(null)
       setPedidos([])
+      setAgendaItems([])
       setClassificacaoRules([])
       setLoaded(true)
       return
@@ -440,8 +498,8 @@ export function usePedidos() {
 
     const fetchedProfile = await fetchProfile(currentSession.user.id)
     setProfile(fetchedProfile)
-    await detectMesColumn()
-    await Promise.all([fetchPedidos(), fetchClassificacaoRules()])
+    await Promise.all([detectMesColumn(), detectAgendaColumns()])
+    await Promise.all([fetchPedidos(), fetchAgendaItems(), fetchClassificacaoRules()])
     setLegacyCount(getLegacyRawCount())
     setLoaded(true)
   }
@@ -529,6 +587,56 @@ export function usePedidos() {
     const adicionados = data?.length || 0
     const duplicatas = Math.max(0, novos.length - adicionados)
     await fetchPedidos()
+    return { adicionados, duplicatas }
+  }
+
+  async function addAgendaItems(novos: Pedido[], agendaData: string): Promise<AddAgendaResult> {
+    if (!supabase) return { adicionados: 0, duplicatas: novos.length }
+    const userId = session?.user?.id
+    if (!userId) return { adicionados: 0, duplicatas: novos.length }
+    if (profile?.role !== 'admin') {
+      throw new Error('Somente administrador pode importar a agenda diaria.')
+    }
+    if (!agendaTableEnabled) {
+      throw new Error('Tabela agenda_items nao encontrada. Rode o SQL atualizado do schema.')
+    }
+    if (!novos.length) return { adicionados: 0, duplicatas: 0 }
+
+    const agenda = agendaFromPedidos(novos, agendaData)
+    let includeMes = agendaHasMesColumn
+    let payload = agenda.map((item) => toAgendaInsertRow(item, userId, includeMes))
+
+    let { data, error } = await supabase
+      .from('agenda_items')
+      .upsert(payload, {
+        onConflict: 'agenda_data,order_id',
+        ignoreDuplicates: true,
+      })
+      .select('id')
+
+    if (error) {
+      const message = error.message.toLowerCase()
+      const missingMes = includeMes && message.includes('column') && message.includes('mes')
+      if (!missingMes) throw new Error(error.message)
+
+      includeMes = false
+      setAgendaHasMesColumn(false)
+      payload = agenda.map((item) => toAgendaInsertRow(item, userId, includeMes))
+      const retry = await supabase
+        .from('agenda_items')
+        .upsert(payload, {
+          onConflict: 'agenda_data,order_id',
+          ignoreDuplicates: true,
+        })
+        .select('id')
+      data = retry.data
+      error = retry.error
+      if (error) throw new Error(error.message)
+    }
+
+    const adicionados = data?.length || 0
+    const duplicatas = Math.max(0, agenda.length - adicionados)
+    await fetchAgendaItems()
     return { adicionados, duplicatas }
   }
 
@@ -919,6 +1027,7 @@ export function usePedidos() {
 
   return {
     pedidos,
+    agendaItems,
     loaded,
     session,
     profile,
@@ -930,12 +1039,15 @@ export function usePedidos() {
     classificacaoRulesTableEnabled,
     legacyCount,
     addPedidos,
+    addAgendaItems,
     clearAll,
     clearByPeriod,
     updateOperadorByDate,
     updateTamanhoNaoIdentificado,
     saveClassificacaoRegra,
     removeClassificacaoRegra,
+    agendaTableEnabled,
+    refreshAgendaItems: fetchAgendaItems,
     refreshClassificacaoRules: fetchClassificacaoRules,
     migrateLegacyPedidos,
     refreshPedidos: fetchPedidos,

@@ -19,6 +19,7 @@ import {
   YAxis,
 } from 'recharts'
 import {
+  type AgendaItem,
   calcKPIs,
   formatStatusLabel,
   fmt,
@@ -49,7 +50,8 @@ import {
 } from '@/lib/storage'
 import ThemeModeControl from '@/components/ThemeModeControl'
 
-type TabId = 'resumo' | 'dinamica' | 'produtos' | 'pedidos' | 'operadores'
+type TabId = 'resumo' | 'agenda' | 'dinamica' | 'produtos' | 'pedidos' | 'operadores'
+type AgendaStatus = 'pendente' | 'concluido' | 'atrasado' | 'concluido_atrasado'
 
 const CHART_TOOLTIP_CONTENT_STYLE = {
   background: '#0f1d31',
@@ -73,12 +75,22 @@ function toIsoDate(datePtBr: string) {
   return `${yyyy}-${mm}-${dd}`
 }
 
+function fromIsoDate(dateIso: string) {
+  const [yyyy, mm, dd] = dateIso.split('-')
+  if (!dd || !mm || !yyyy) return dateIso
+  return `${dd}/${mm}/${yyyy}`
+}
+
 function todayIsoDate() {
   const now = new Date()
   const yyyy = String(now.getFullYear())
   const mm = String(now.getMonth() + 1).padStart(2, '0')
   const dd = String(now.getDate()).padStart(2, '0')
   return `${yyyy}-${mm}-${dd}`
+}
+
+function comparePtDates(a: string, b: string) {
+  return toIsoDate(a).localeCompare(toIsoDate(b))
 }
 
 function percentDelta(current: number, previous: number) {
@@ -97,6 +109,20 @@ function formatDateTime(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('pt-BR')
+}
+
+function agendaStatusLabel(status: AgendaStatus) {
+  if (status === 'concluido') return 'Concluido'
+  if (status === 'concluido_atrasado') return 'Concluido com atraso'
+  if (status === 'atrasado') return 'Atrasado'
+  return 'Pendente'
+}
+
+function agendaStatusColors(status: AgendaStatus) {
+  if (status === 'concluido') return { bg: 'rgba(16,185,129,0.14)', border: 'rgba(16,185,129,0.32)', color: '#34d399' }
+  if (status === 'concluido_atrasado') return { bg: 'rgba(245,158,11,0.14)', border: 'rgba(245,158,11,0.32)', color: '#fbbf24' }
+  if (status === 'atrasado') return { bg: 'rgba(244,63,94,0.14)', border: 'rgba(244,63,94,0.32)', color: '#fb7185' }
+  return { bg: 'rgba(59,130,246,0.14)', border: 'rgba(59,130,246,0.32)', color: '#93c5fd' }
 }
 
 function roleLabel(role: UserRole) {
@@ -326,6 +352,68 @@ function UploadModal({
         {error && <div style={{ color: '#fb7185', marginBottom: 8, fontSize: 12 }}>{error}</div>}
         <button onClick={handleImport} disabled={loading || !file} style={{ width: '100%', border: 'none', borderRadius: 8, background: 'var(--cyan)', color: '#00131b', padding: 12, fontWeight: 700, cursor: 'pointer' }}>
           {loading ? 'PROCESSANDO...' : 'IMPORTAR'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AgendaUploadModal({
+  onClose,
+  onImport,
+}: {
+  onClose: () => void
+  onImport: (pedidos: Pedido[], agendaData: string, info: string) => Promise<void>
+}) {
+  const [data, setData] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const ref = useRef<HTMLInputElement>(null)
+
+  function onFile(next: File) {
+    setFile(next)
+    setError('')
+    const m = next.name.match(/(\d{4})(\d{2})(\d{2})/)
+    if (m) setData(`${m[3]}/${m[2]}/${m[1]}`)
+  }
+
+  async function handleImport() {
+    if (!file || !data) {
+      setError('Preencha a data e selecione o arquivo da agenda.')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const rows = await lerArquivoMaquina(file)
+      const pedidos = processarArquivo(rows, data, '')
+      const info = `${pedidos.length} item(ns) de agenda`
+      await onImport(pedidos, data, info)
+    } catch {
+      setError('Erro ao ler arquivo da agenda.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.86)', zIndex: 100, display: 'grid', placeItems: 'end center' }}>
+      <div className="card" style={{ width: '100%', maxWidth: 540, borderRadius: '16px 16px 0 0', padding: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ color: 'var(--cyan)', fontFamily: 'var(--font-display)', fontSize: 22 }}>IMPORTAR AGENDA</div>
+          <button onClick={onClose} style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={18} /></button>
+        </div>
+        <input ref={ref} type="file" accept=".xlsx,.xls,.csv" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} style={{ display: 'none' }} />
+        <button onClick={() => ref.current?.click()} className="upload-zone" style={{ width: '100%', marginBottom: 12 }}>
+          {file ? file.name : 'Selecionar arquivo .xlsx/.csv da agenda'}
+        </button>
+        <div style={{ marginBottom: 12 }}>
+          <input value={data} onChange={(e) => setData(e.target.value)} placeholder="DD/MM/AAAA" style={{ width: '100%', background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: 10 }} />
+        </div>
+        {error && <div style={{ color: '#fb7185', marginBottom: 8, fontSize: 12 }}>{error}</div>}
+        <button onClick={handleImport} disabled={loading || !file} style={{ width: '100%', border: 'none', borderRadius: 8, background: 'var(--cyan)', color: '#00131b', padding: 12, fontWeight: 700, cursor: 'pointer' }}>
+          {loading ? 'PROCESSANDO...' : 'IMPORTAR AGENDA'}
         </button>
       </div>
     </div>
@@ -1486,6 +1574,187 @@ function ResumoTab({ pedidos, isAdmin }: { pedidos: Pedido[]; isAdmin: boolean }
   )
 }
 
+function AgendaTab({
+  agendaItems,
+  pedidos,
+  agendaTableEnabled,
+  isAdmin,
+  onOpenImport,
+}: {
+  agendaItems: AgendaItem[]
+  pedidos: Pedido[]
+  agendaTableEnabled: boolean
+  isAdmin: boolean
+  onOpenImport: () => void
+}) {
+  const importedDates = Array.from(new Set(agendaItems.map((item) => item.agendaData)))
+    .sort((a, b) => comparePtDates(a, b))
+  const [selectedDateIso, setSelectedDateIso] = useState(importedDates.length ? toIsoDate(importedDates[importedDates.length - 1]) : todayIsoDate())
+
+  useEffect(() => {
+    if (!importedDates.length) {
+      setSelectedDateIso(todayIsoDate())
+      return
+    }
+    const selectedDate = fromIsoDate(selectedDateIso)
+    if (!importedDates.includes(selectedDate)) {
+      setSelectedDateIso(toIsoDate(importedDates[importedDates.length - 1]))
+    }
+  }, [importedDates, selectedDateIso])
+
+  const selectedDate = fromIsoDate(selectedDateIso)
+  const servicos = soServicos(pedidos)
+  const producedByOrder = new Map<string, Pedido>()
+  ;[...servicos]
+    .sort((a, b) => comparePtDates(a.data, b.data))
+    .forEach((pedido) => {
+      if (!producedByOrder.has(pedido.orderID)) producedByOrder.set(pedido.orderID, pedido)
+    })
+
+  const agendaRows = agendaItems
+    .filter((item) => comparePtDates(item.agendaData, selectedDate) <= 0)
+    .map((item) => {
+      const produced = producedByOrder.get(item.orderID)
+      const producedUntilSelected = produced && comparePtDates(produced.data, selectedDate) <= 0 ? produced : null
+      let status: AgendaStatus = 'pendente'
+
+      if (producedUntilSelected) {
+        status = comparePtDates(producedUntilSelected.data, item.agendaData) > 0 ? 'concluido_atrasado' : 'concluido'
+      } else if (comparePtDates(item.agendaData, selectedDate) < 0) {
+        status = 'atrasado'
+      }
+
+      return {
+        ...item,
+        status,
+        producedAt: producedUntilSelected?.data || '',
+      }
+    })
+    .filter((item) => item.status === 'pendente' || item.status === 'atrasado' || item.producedAt === selectedDate)
+    .sort((a, b) => {
+      const priority: Record<AgendaStatus, number> = {
+        atrasado: 0,
+        pendente: 1,
+        concluido_atrasado: 2,
+        concluido: 3,
+      }
+      const statusCmp = priority[a.status] - priority[b.status]
+      if (statusCmp !== 0) return statusCmp
+      const dateCmp = comparePtDates(a.agendaData, b.agendaData)
+      if (dateCmp !== 0) return dateCmp
+      return a.orderID.localeCompare(b.orderID)
+    })
+
+  const totalAgenda = agendaRows.length
+  const concluidos = agendaRows.filter((item) => item.status === 'concluido' || item.status === 'concluido_atrasado').length
+  const atrasados = agendaRows.filter((item) => item.status === 'atrasado').length
+  const pendentes = agendaRows.filter((item) => item.status === 'pendente').length
+  const aderencia = totalAgenda ? (concluidos / totalAgenda) * 100 : 0
+
+  if (!agendaTableEnabled) {
+    return (
+      <div style={{ padding: 14, paddingBottom: 24 }}>
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 6 }}>Agenda diaria ainda nao habilitada</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+            Rode o SQL atualizado do schema para criar a tabela <code>agenda_items</code> e habilitar essa aba.
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!agendaItems.length) {
+    return (
+      <div style={{ padding: 14, paddingBottom: 24 }}>
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 6 }}>Nenhuma agenda importada</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Importe o arquivo diario para acompanhar o planejado x realizado.</div>
+            </div>
+            {isAdmin && (
+              <button onClick={onOpenImport} style={{ border: 'none', borderRadius: 8, background: 'var(--cyan)', color: '#00131b', padding: '10px 12px', fontWeight: 700, cursor: 'pointer' }}>
+                Importar agenda
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: 14, paddingBottom: 24 }}>
+      <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ color: 'var(--cyan)', fontFamily: 'var(--font-display)', letterSpacing: '0.06em' }}>AGENDA DIARIA</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
+              Vinculo entre agenda importada e servicos produzidos no dia.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input type="date" value={selectedDateIso} onChange={(e) => setSelectedDateIso(e.target.value)} style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }} />
+            {isAdmin && (
+              <button onClick={onOpenImport} style={{ border: 'none', borderRadius: 8, background: 'var(--cyan)', color: '#00131b', padding: '8px 12px', fontWeight: 700, cursor: 'pointer' }}>
+                Importar agenda
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
+        <MetricCard title="Itens da Agenda" value={fmt(totalAgenda)} hint={`Data de analise: ${selectedDate}`} icon={<Factory size={14} />} />
+        <MetricCard title="Concluidos no Dia" value={fmt(concluidos)} hint="Itens vinculados a producao" icon={<TrendingUp size={14} />} />
+        <MetricCard title="Atrasos em Aberto" value={fmt(atrasados)} hint="Itens guardados para o proximo dia" icon={<UserRound size={14} />} />
+        <MetricCard title="Aderencia" value={`${aderencia.toFixed(0)}%`} hint={`${fmt(pendentes)} pendente(s) do dia`} icon={<Factory size={14} />} />
+      </div>
+
+      <TableCard title="Status da Agenda">
+        <div className="mobile-h-scroll">
+          <table className="data-table" style={{ minWidth: 980 }}>
+            <thead><tr><th>Agenda</th><th>Status</th><th>Conclusao</th><th>Cliente</th><th>Prefixo + Codigo</th><th>Tam</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Imgs</th><th style={{ textAlign: 'right' }}>Chapas</th><th style={{ textAlign: 'right' }}>Caixas</th></tr></thead>
+            <tbody>
+              {agendaRows.map((item, index) => {
+                const statusStyle = agendaStatusColors(item.status)
+                return (
+                  <tr key={`${item.agendaData}-${item.orderID}-${index}`}>
+                    <td>{item.agendaData}</td>
+                    <td>
+                      <span style={{ border: `1px solid ${statusStyle.border}`, borderRadius: 999, padding: '2px 8px', fontSize: 10, color: statusStyle.color, background: statusStyle.bg }}>
+                        {agendaStatusLabel(item.status)}
+                      </span>
+                    </td>
+                    <td>{item.producedAt || '-'}</td>
+                    <td>{item.nomeCliente}</td>
+                    <td>{codigoComPrefixo(item.prefixo, item.codigo)}</td>
+                    <td>{tamanhoRotulo(item.tamanhoCm)}</td>
+                    <td>{item.tipoCaixa}</td>
+                    <td style={{ textAlign: 'right' }}>{fmt(item.qtdImagens)}</td>
+                    <td style={{ textAlign: 'right' }}>{fmt(item.chapasPlanejadas)}</td>
+                    <td style={{ textAlign: 'right' }}>{fmt(item.caixasPlanejadas)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </TableCard>
+
+      {totalAgenda > 0 && pendentes === 0 && atrasados === 0 && (
+        <div className="card" style={{ padding: 12 }}>
+          <div style={{ color: '#34d399', fontWeight: 700 }}>Agenda do dia concluida</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
+            Todos os itens visiveis para {selectedDate} foram concluidos. A proxima agenda fica aguardando nova importacao.
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DinamicaTab({ pedidos }: { pedidos: Pedido[] }) {
   const svcs = soServicos(pedidos)
   const tamanhos = Array.from(new Set(svcs.map((p) => tamanhoChave(p.tamanhoCm))))
@@ -1684,7 +1953,9 @@ function OperadoresTab({ pedidos }: { pedidos: Pedido[] }) {
 export default function App() {
   const {
     pedidos,
+    agendaItems,
     addPedidos,
+    addAgendaItems,
     clearByPeriod,
     updateOperadorByDate,
     loaded,
@@ -1696,6 +1967,7 @@ export default function App() {
     legacyCount,
     supabaseEnabled,
     canImport,
+    agendaTableEnabled,
     listPendingProfiles,
     listProfiles,
     approveProfile,
@@ -1708,6 +1980,7 @@ export default function App() {
   } = usePedidos()
   const [tab, setTab] = useState<TabId>('resumo')
   const [modal, setModal] = useState(false)
+  const [agendaModal, setAgendaModal] = useState(false)
   const [adminModal, setAdminModal] = useState(false)
   const [pendingProfiles, setPendingProfiles] = useState<PendingProfile[]>([])
   const [loadingPendingProfiles, setLoadingPendingProfiles] = useState(false)
@@ -1722,6 +1995,7 @@ export default function App() {
   const navTabs: Array<readonly [TabId, string]> = isAdmin
     ? [
       ['resumo', 'Resumo'],
+      ['agenda', 'Agenda'],
       ['dinamica', 'Dinamica'],
       ['produtos', 'Produtos'],
       ['pedidos', 'Pedidos'],
@@ -1729,6 +2003,7 @@ export default function App() {
     ]
     : [
       ['resumo', 'Resumo'],
+      ['agenda', 'Agenda'],
       ['dinamica', 'Dinamica'],
       ['produtos', 'Produtos'],
       ['pedidos', 'Pedidos'],
@@ -1772,6 +2047,16 @@ export default function App() {
       showToast(res.duplicatas > 0 ? `${res.adicionados} importados • ${res.duplicatas} duplicados` : info)
     } catch (error) {
       showToast(`Erro ao importar: ${(error as Error).message}`)
+    }
+  }
+
+  async function onImportAgenda(novos: Pedido[], agendaData: string, info: string) {
+    try {
+      const res = await addAgendaItems(novos, agendaData)
+      setAgendaModal(false)
+      showToast(res.duplicatas > 0 ? `${res.adicionados} agenda(s) importadas â€¢ ${res.duplicatas} duplicadas` : info)
+    } catch (error) {
+      showToast(`Erro ao importar agenda: ${(error as Error).message}`)
     }
   }
 
@@ -1954,18 +2239,20 @@ export default function App() {
       )}
 
       {activeTab === 'resumo' && <ResumoTab pedidos={pedidos} isAdmin={isAdmin} />}
+      {activeTab === 'agenda' && <AgendaTab agendaItems={agendaItems} pedidos={pedidos} agendaTableEnabled={agendaTableEnabled} isAdmin={isAdmin} onOpenImport={() => setAgendaModal(true)} />}
       {activeTab === 'dinamica' && <DinamicaTab pedidos={pedidos} />}
       {activeTab === 'produtos' && <ProdutosTab pedidos={pedidos} />}
       {activeTab === 'pedidos' && <PedidosTab pedidos={pedidos} />}
       {activeTab === 'operadores' && <OperadoresTab pedidos={pedidos} />}
 
-      {canImport && (
+      {canImport && activeTab !== 'agenda' && (
         <button onClick={() => setModal(true)} style={{ position: 'fixed', right: 16, bottom: 'calc(16px + env(safe-area-inset-bottom))', zIndex: 30, width: 52, height: 52, borderRadius: 999, border: 'none', background: 'var(--cyan)', color: '#06202d', display: 'grid', placeItems: 'center', boxShadow: '0 0 24px rgba(0,212,255,0.45)' }}>
           <Upload size={18} />
         </button>
       )}
 
       {modal && <UploadModal onClose={() => setModal(false)} onImport={onImport} operadores={operadores} />}
+      {agendaModal && <AgendaUploadModal onClose={() => setAgendaModal(false)} onImport={onImportAgenda} />}
       {adminModal && isAdmin && (
         <AdminToolsModal
           onClose={() => setAdminModal(false)}

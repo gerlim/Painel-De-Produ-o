@@ -10,6 +10,17 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.1.0] - 2026-03-10
+
+### Added
+- Nova aba `Agenda` para importar a agenda diaria e acompanhar planejado x realizado.
+- Importacao da agenda usando o mesmo parser do arquivo de producao.
+- Vinculo automatico entre agenda e producao por `order_id`, com identificacao de `pendente`, `atrasado`, `concluido` e `concluido com atraso`.
+- Persistencia da agenda em `agenda_items` com leitura para todos os usuarios ativos e escrita administrativa.
+
+### Changed
+- Itens nao feitos passam a aparecer como atraso e continuam visiveis no dia seguinte ate a conclusao.
+
 ## [1.0.8] - 2026-03-10
 
 ### Changed
