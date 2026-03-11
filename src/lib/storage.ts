@@ -637,14 +637,45 @@ export function usePedidos() {
     }
     if (!novos.length) return { adicionados: 0, duplicatas: 0 }
 
+    const uniqueAgendaDates = Array.from(new Set(novos.map((item) => item.agendaData)))
+    const existingByKey = new Map<string, { atrasoMotivo: AtrasoMotivo | null; atrasoObservacao: string | null }>()
+
+    if (uniqueAgendaDates.length) {
+      const existingLookup = await supabase
+        .from('agenda_items')
+        .select('agenda_data, order_id, atraso_motivo, atraso_observacao')
+        .in('agenda_data', uniqueAgendaDates)
+
+      if (existingLookup.error) {
+        throw new Error(existingLookup.error.message)
+      }
+
+      ;(existingLookup.data || []).forEach((row) => {
+        const key = `${String(row.agenda_data || '')}|${String(row.order_id || '')}`
+        existingByKey.set(key, {
+          atrasoMotivo: (row.atraso_motivo as AtrasoMotivo | null) || null,
+          atrasoObservacao: String(row.atraso_observacao || '') || null,
+        })
+      })
+    }
+
+    const normalizedAgenda = novos.map((item) => {
+      const existing = existingByKey.get(`${item.agendaData}|${item.orderID}`)
+      return {
+        ...item,
+        atrasoMotivo: existing?.atrasoMotivo ?? item.atrasoMotivo,
+        atrasoObservacao: existing?.atrasoObservacao ?? item.atrasoObservacao,
+      }
+    })
+
     let includeMes = agendaHasMesColumn
-    let payload = novos.map((item) => toAgendaInsertRow(item, userId, includeMes))
+    let payload = normalizedAgenda.map((item) => toAgendaInsertRow(item, userId, includeMes))
 
     let { data, error } = await supabase
       .from('agenda_items')
       .upsert(payload, {
         onConflict: 'agenda_data,order_id',
-        ignoreDuplicates: true,
+        ignoreDuplicates: false,
       })
       .select('id')
 
@@ -655,12 +686,12 @@ export function usePedidos() {
 
       includeMes = false
       setAgendaHasMesColumn(false)
-      payload = novos.map((item) => toAgendaInsertRow(item, userId, includeMes))
+      payload = normalizedAgenda.map((item) => toAgendaInsertRow(item, userId, includeMes))
       const retry = await supabase
         .from('agenda_items')
         .upsert(payload, {
           onConflict: 'agenda_data,order_id',
-          ignoreDuplicates: true,
+          ignoreDuplicates: false,
         })
         .select('id')
       data = retry.data
@@ -668,8 +699,8 @@ export function usePedidos() {
       if (error) throw new Error(error.message)
     }
 
-    const adicionados = data?.length || 0
-    const duplicatas = Math.max(0, novos.length - adicionados)
+    const duplicatas = normalizedAgenda.filter((item) => existingByKey.has(`${item.agendaData}|${item.orderID}`)).length
+    const adicionados = Math.max(0, novos.length - duplicatas)
     await fetchAgendaItems()
     return { adicionados, duplicatas }
   }

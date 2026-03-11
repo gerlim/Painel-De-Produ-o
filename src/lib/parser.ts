@@ -748,6 +748,31 @@ export function toAgendaInsertRow(
   return row
 }
 
+function extractAgendaClientName(descricao: string): string | null {
+  const text = String(descricao || '').trim()
+  if (!text) return null
+
+  const sizeMatch = text.match(/\b\d{2}(?:x\d+(?:x\d+)?)?\s*cm\b/i)
+  if (!sizeMatch || typeof sizeMatch.index !== 'number') return null
+
+  let tail = text.slice(sizeMatch.index + sizeMatch[0].length).trim()
+  const monthMatch = tail.match(/\b(?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\/\d{2}\b/i)
+  if (monthMatch && typeof monthMatch.index === 'number') {
+    tail = tail.slice(0, monthMatch.index).trim()
+  } else {
+    const quantityMatch = tail.match(/\bC\/\s*\d+\s*UN\b/i)
+    if (quantityMatch && typeof quantityMatch.index === 'number') {
+      tail = tail.slice(0, quantityMatch.index).trim()
+    }
+  }
+
+  tail = tail
+    .replace(/^(?:QM\d+\s+)*(?:MICRO|KRAFT|OND[A-Z]*|PAPELAO|PAPELÃO|OFFSET|COUCHE|TRIPLEX|DUPLEX|BOPP)\s+/i, '')
+    .trim()
+
+  return tail || null
+}
+
 function excelSerialToDatePtBr(value: unknown): string | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return normalizeDatePtBr(value)
   const utcMs = Math.round((value - 25569) * 86400 * 1000)
@@ -791,6 +816,7 @@ export async function lerArquivoAgenda(file: File, fallbackAgendaData = ''): Pro
     if (!descricao || !produto || !quantidade) continue
 
     const parsed = parseOrderId(descricao)
+    const nomeClienteAgenda = extractAgendaClientName(descricao)
     const { prefixo, codigo } = splitAgendaProductCode(produto)
     const agendaData = currentAgendaData || referencia
     if (!agendaData) continue
@@ -802,7 +828,7 @@ export async function lerArquivoAgenda(file: File, fallbackAgendaData = ''): Pro
       orderID: ordem || String(produto),
       prefixo: prefixo || parsed.prefixo,
       codigo: codigo || parsed.codigo,
-      nomeCliente: parsed.nomeCliente,
+      nomeCliente: nomeClienteAgenda || parsed.nomeCliente,
       tamanhoCm: parsed.tamanhoCm,
       tipoCaixa: parsed.tipoCaixa,
       pecaUnica: parsed.pecaUnica,

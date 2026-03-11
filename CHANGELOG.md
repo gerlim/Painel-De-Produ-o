@@ -10,6 +10,12 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.1.5] - 2026-03-10
+
+### Fixed
+- Parser da `Agenda` ajustado para extrair o nome real do cliente a partir da descricao do arquivo `digital.xlsx`, evitando nomes internos como `GL CX OITAVADA`.
+- Reimportacao da agenda passa a atualizar registros existentes sem perder as observacoes de atraso ja salvas.
+
 ## [1.1.4] - 2026-03-10
 
 ### Changed
