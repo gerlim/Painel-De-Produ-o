@@ -146,18 +146,22 @@ function atrasoMotivoLabel(value: AtrasoMotivo | null) {
   return ATRASO_MOTIVO_OPTIONS.find((item) => item.value === value)?.label || 'Sem motivo'
 }
 
+function normalizeAgendaCode(value: string) {
+  const digits = String(value || '').replace(/\D/g, '')
+  if (digits) return digits.replace(/^0+(?=\d)/, '')
+  return String(value || '').trim().toLowerCase()
+}
+
 function reconcileAgendaRows(agendaItems: AgendaItem[], pedidos: Pedido[], selectedDate: string): AgendaResolvedItem[] {
   const serviceRows = soServicos(pedidos)
     .filter((pedido) => comparePtDates(pedido.data, selectedDate) <= 0)
     .sort((a, b) => comparePtDates(a.data, b.data))
-
-  const producedPools = new Map<string, Array<Pedido & { remainingChapas: number }>>()
-  serviceRows.forEach((pedido) => {
-    const key = codigoComPrefixo(pedido.prefixo, pedido.codigo)
-    const current = producedPools.get(key) || []
-    current.push({ ...pedido, remainingChapas: Math.max(0, pedido.chapasImpressas) })
-    producedPools.set(key, current)
-  })
+    .map((pedido) => ({
+      ...pedido,
+      remainingChapas: Math.max(0, pedido.chapasImpressas),
+      normalizedCodigo: normalizeAgendaCode(pedido.codigo),
+      normalizedPrefixo: String(pedido.prefixo || '').trim(),
+    }))
 
   return agendaItems
     .filter((item) => comparePtDates(item.agendaData, selectedDate) <= 0)
@@ -167,8 +171,17 @@ function reconcileAgendaRows(agendaItems: AgendaItem[], pedidos: Pedido[], selec
       return codigoComPrefixo(a.prefixo, a.codigo).localeCompare(codigoComPrefixo(b.prefixo, b.codigo))
     })
     .map((item) => {
-      const key = codigoComPrefixo(item.prefixo, item.codigo)
-      const pool = producedPools.get(key) || []
+      const normalizedCodigo = normalizeAgendaCode(item.codigo)
+      const normalizedPrefixo = String(item.prefixo || '').trim()
+      const pool = serviceRows
+        .filter((pedido) => pedido.remainingChapas > 0 && pedido.normalizedCodigo === normalizedCodigo)
+        .sort((a, b) => {
+          const aScore = a.normalizedPrefixo === normalizedPrefixo ? 0 : 1
+          const bScore = b.normalizedPrefixo === normalizedPrefixo ? 0 : 1
+          if (aScore !== bScore) return aScore - bScore
+          return comparePtDates(a.data, b.data)
+        })
+
       let remainingChapas = Math.max(0, item.chapasPlanejadas)
       let chapasRealizadas = 0
       let caixasRealizadas = 0

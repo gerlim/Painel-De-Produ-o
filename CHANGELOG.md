@@ -10,6 +10,11 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.1.7] - 2026-03-10
+
+### Fixed
+- Conciliacao da `Agenda` com a producao passou a normalizar o codigo do produto, evitando falhas de pareamento quando existem zeros a esquerda ou variacoes de prefixo.
+
 ## [1.1.6] - 2026-03-10
 
 ### Added
