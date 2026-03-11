@@ -38,6 +38,7 @@ export interface Pedido {
   qtdImagens: number
   chapasImpressas: number
   caixasProduzidas: number
+  metrosLineares: number
   areaMq: number
   cMl: number
   mMl: number
@@ -71,6 +72,7 @@ export interface KPIs {
   totalPedidos: number
   totalChapas: number
   totalCaixas: number
+  totalMetrosLineares: number
   mediaCaixasPorPedido: number
   pedidosTeste: number
   totalCaixasTeste: number
@@ -178,6 +180,12 @@ function parseNumber(value: unknown): number {
 
   const parsed = Number(text)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function calcMetrosLineares(lengthMm: unknown, chapas: number): number {
+  const length = parseNumber(lengthMm)
+  if (length <= 0 || chapas <= 0) return 0
+  return (length * chapas) / 1000
 }
 
 function normalizeDatePtBr(value: unknown): string | null {
@@ -561,6 +569,7 @@ export function processarArquivo(
       const tamanhoRegistro = parseTamanho(row['Tamanho (cm)'])
       const tipoRegistro = parseTipoCaixa(row['Tipo Caixa'])
       const pecaUnicaRegistro = parseBoolean(row['Peca Unica'])
+      const metrosLineares = calcMetrosLineares(row['length(mm)'], chapas)
       const areaRaw = parseNumber(row['PrintingArea(m^2)'])
       const areaMq = areaRaw > 1000 ? areaRaw / 1_000_000 : areaRaw
 
@@ -580,6 +589,7 @@ export function processarArquivo(
         qtdImagens,
         chapasImpressas: chapas,
         caixasProduzidas,
+        metrosLineares,
         areaMq,
         cMl: parseNumber(row['C(ml)']),
         mMl: parseNumber(row['M(ml)']),
@@ -616,6 +626,7 @@ export function toPedido(row: Record<string, unknown>): Pedido {
     qtdImagens: Math.trunc(parseNumber(row.qtd_imagens)),
     chapasImpressas: Math.trunc(parseNumber(row.chapas_impressas)),
     caixasProduzidas: Math.trunc(parseNumber(row.caixas_produzidas)),
+    metrosLineares: parseNumber(row.metros_lineares),
     areaMq: parseNumber(row.area_mq),
     cMl: parseNumber(row.c_ml),
     mMl: parseNumber(row.m_ml),
@@ -630,6 +641,7 @@ export function toPedidoInsertRow(
   pedido: Pedido,
   createdBy?: string | null,
   includeMes = true,
+  includeMetrosLineares = true,
 ): Record<string, unknown> {
   const row: Record<string, unknown> = {
     data_producao: pedido.data,
@@ -656,6 +668,7 @@ export function toPedidoInsertRow(
     created_by: createdBy || null,
   }
   if (includeMes) row.mes = pedido.mes || mesFromData(pedido.data)
+  if (includeMetrosLineares) row.metros_lineares = pedido.metrosLineares
   return row
 }
 
@@ -818,6 +831,7 @@ export function sanitizeLegacyPedido(row: Record<string, unknown>): Pedido | nul
     qtdImagens,
     chapasImpressas: chapas,
     caixasProduzidas: Math.trunc(parseNumber(row.caixasProduzidas || (chapas * qtdImagens))),
+    metrosLineares: parseNumber(row.metrosLineares),
     areaMq: parseNumber(row.areaMq),
     cMl: parseNumber(row.cMl),
     mMl: parseNumber(row.mMl),
@@ -845,6 +859,7 @@ export function calcKPIs(pedidos: Pedido[]): KPIs {
     totalPedidos: svcs.length,
     totalChapas: svcs.reduce((acc, pedido) => acc + pedido.chapasImpressas, 0),
     totalCaixas,
+    totalMetrosLineares: svcs.reduce((acc, pedido) => acc + pedido.metrosLineares, 0),
     mediaCaixasPorPedido: svcs.length ? Math.round(totalCaixas / svcs.length) : 0,
     pedidosTeste: tsts.length,
     totalCaixasTeste: tsts.reduce((acc, pedido) => acc + pedido.caixasProduzidas, 0),

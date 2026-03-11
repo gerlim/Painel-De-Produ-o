@@ -1440,7 +1440,12 @@ function ResumoTab({ pedidos, isAdmin }: { pedidos: Pedido[]; isAdmin: boolean }
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
         <MetricCard title="Caixas de Servico" value={fmt(k.totalCaixas)} hint={`${fmt(k.totalPedidos)} pedidos validos`} icon={<TrendingUp size={14} />} />
         <MetricCard title="Chapas" value={fmt(k.totalChapas)} hint={`Media ${fmt(k.mediaCaixasPorPedido)} cx/pedido`} icon={<Factory size={14} />} />
-        <MetricCard title="Area Produzida" value={`${k.totalAreaMq.toFixed(2)} m2`} hint="Area total registrada" icon={<span style={{ fontWeight: 700 }}>m2</span>} />
+        <MetricCard
+          title="Metros Lineares"
+          value={`${k.totalMetrosLineares.toFixed(1)} m`}
+          hint="Comprimento total produzido"
+          icon={<span style={{ fontWeight: 700 }}>m</span>}
+        />
         <MetricCard
           title="Tendencia do Ultimo Dia"
           value={`${tendenciaCaixas >= 0 ? '+' : ''}${tendenciaCaixas.toFixed(1)}%`}

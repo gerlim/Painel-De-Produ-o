@@ -67,6 +67,7 @@ create table if not exists public.pedidos (
   qtd_imagens integer not null default 1,
   chapas_impressas integer not null default 0,
   caixas_produzidas integer not null default 0,
+  metros_lineares numeric not null default 0,
   area_mq numeric not null default 0,
   c_ml numeric not null default 0,
   m_ml numeric not null default 0,
@@ -103,6 +104,7 @@ create table if not exists public.agenda_items (
 alter table public.agenda_items add column if not exists data_referencia text;
 
 alter table public.pedidos add column if not exists mes text;
+alter table public.pedidos add column if not exists metros_lineares numeric not null default 0;
 update public.pedidos
 set mes = substring(data_producao from 7 for 4) || '-' || substring(data_producao from 4 for 2)
 where (mes is null or mes = '')

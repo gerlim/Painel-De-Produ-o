@@ -351,6 +351,7 @@ export function usePedidos() {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [hasMesColumn, setHasMesColumn] = useState<boolean>(true)
+  const [hasMetrosLinearesColumn, setHasMetrosLinearesColumn] = useState<boolean>(true)
   const [agendaTableEnabled, setAgendaTableEnabled] = useState<boolean>(true)
   const [agendaHasMesColumn, setAgendaHasMesColumn] = useState<boolean>(true)
   const [classificacaoRules, setClassificacaoRules] = useState<ClassificacaoRegra[]>([])
@@ -369,6 +370,19 @@ export function usePedidos() {
     const message = error.message.toLowerCase()
     const missingColumn = message.includes('column') && message.includes('mes')
     setHasMesColumn(!missingColumn)
+    return !missingColumn
+  }
+
+  async function detectMetrosLinearesColumn() {
+    if (!supabase) return false
+    const { error } = await supabase.from('pedidos').select('metros_lineares').limit(1)
+    if (!error) {
+      setHasMetrosLinearesColumn(true)
+      return true
+    }
+    const message = error.message.toLowerCase()
+    const missingColumn = message.includes('column') && message.includes('metros_lineares')
+    setHasMetrosLinearesColumn(!missingColumn)
     return !missingColumn
   }
 
@@ -497,7 +511,7 @@ export function usePedidos() {
 
     const fetchedProfile = await fetchProfile(currentSession.user.id)
     setProfile(fetchedProfile)
-    await Promise.all([detectMesColumn(), detectAgendaColumns()])
+    await Promise.all([detectMesColumn(), detectMetrosLinearesColumn(), detectAgendaColumns()])
     await Promise.all([fetchPedidos(), fetchAgendaItems(), fetchClassificacaoRules()])
     setLegacyCount(getLegacyRawCount())
     setLoaded(true)
@@ -553,34 +567,49 @@ export function usePedidos() {
       : novos
 
     let includeMes = hasMesColumn
-    let payload = normalizedPedidos.map((pedido) => toPedidoInsertRow(pedido, userId, includeMes))
+    let includeMetrosLineares = hasMetrosLinearesColumn
+    let data: { id: number }[] | null = null
+    let error: { message: string } | null = null
 
-    let { data, error } = await supabase
-      .from('pedidos')
-      .upsert(payload, {
-        onConflict: 'data_producao,operador,order_id',
-        ignoreDuplicates: true,
-      })
-      .select('id')
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const payload = normalizedPedidos.map((pedido) =>
+        toPedidoInsertRow(pedido, userId, includeMes, includeMetrosLineares),
+      )
 
-    if (error) {
-      const message = error.message.toLowerCase()
-      const missingMes = includeMes && message.includes('column') && message.includes('mes')
-      if (!missingMes) throw new Error(error.message)
-
-      includeMes = false
-      setHasMesColumn(false)
-      payload = normalizedPedidos.map((pedido) => toPedidoInsertRow(pedido, userId, includeMes))
-      const retry = await supabase
+      const result = await supabase
         .from('pedidos')
         .upsert(payload, {
           onConflict: 'data_producao,operador,order_id',
           ignoreDuplicates: true,
         })
         .select('id')
-      data = retry.data
-      error = retry.error
-      if (error) throw new Error(error.message)
+
+      data = result.data
+      error = result.error
+      if (!error) break
+
+      const message = error.message.toLowerCase()
+      const missingMes = includeMes && message.includes('column') && message.includes('mes')
+      const missingMetrosLineares =
+        includeMetrosLineares && message.includes('column') && message.includes('metros_lineares')
+
+      if (!missingMes && !missingMetrosLineares) {
+        throw new Error(error.message)
+      }
+
+      if (missingMes) {
+        includeMes = false
+        setHasMesColumn(false)
+      }
+
+      if (missingMetrosLineares) {
+        includeMetrosLineares = false
+        setHasMetrosLinearesColumn(false)
+      }
+    }
+
+    if (error) {
+      throw new Error(error.message)
     }
 
     const adicionados = data?.length || 0

@@ -10,6 +10,15 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.1.3] - 2026-03-10
+
+### Changed
+- Card principal do resumo passou a exibir `Metros Lineares` no lugar de `Area Produzida`.
+- Importacao de pedidos agora persiste `metros_lineares` no Supabase quando a coluna existe, com fallback automatico para bases ainda nao migradas.
+
+### Infra
+- Schema Supabase atualizado com a coluna `pedidos.metros_lineares`.
+
 ## [1.1.2] - 2026-03-10
 
 ### Changed
