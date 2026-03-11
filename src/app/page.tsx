@@ -1668,6 +1668,7 @@ function AgendaTab({
   isAdmin,
   onOpenImport,
   onSaveAtraso,
+  onClearAgendaPeriod,
 }: {
   agendaItems: AgendaItem[]
   pedidos: Pedido[]
@@ -1675,12 +1676,15 @@ function AgendaTab({
   isAdmin: boolean
   onOpenImport: () => void
   onSaveAtraso: (agendaItemId: number, atrasoMotivo: AtrasoMotivo | null, atrasoObservacao: string | null) => Promise<void>
+  onClearAgendaPeriod: (dateIso: string, period: ClearPeriod) => Promise<void>
 }) {
   const importedDates = Array.from(new Set(agendaItems.map((item) => item.agendaData)))
     .sort((a, b) => comparePtDates(a, b))
   const [selectedDateIso, setSelectedDateIso] = useState(importedDates.length ? toIsoDate(importedDates[importedDates.length - 1]) : todayIsoDate())
+  const [clearPeriod, setClearPeriod] = useState<ClearPeriod>('day')
   const [atrasoForms, setAtrasoForms] = useState<Record<number, { motivo: AtrasoMotivo | ''; observacao: string }>>({})
   const [savingAtrasoId, setSavingAtrasoId] = useState(0)
+  const [clearingAgenda, setClearingAgenda] = useState(false)
 
   useEffect(() => {
     if (!importedDates.length) {
@@ -1740,6 +1744,15 @@ function AgendaTab({
     }
   }
 
+  async function handleClearAgenda() {
+    setClearingAgenda(true)
+    try {
+      await onClearAgendaPeriod(selectedDateIso, clearPeriod)
+    } finally {
+      setClearingAgenda(false)
+    }
+  }
+
   if (!agendaTableEnabled) {
     return (
       <div style={{ padding: 14, paddingBottom: 24 }}>
@@ -1786,9 +1799,27 @@ function AgendaTab({
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input type="date" value={selectedDateIso} onChange={(e) => setSelectedDateIso(e.target.value)} style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }} />
             {isAdmin && (
-              <button onClick={onOpenImport} style={{ border: 'none', borderRadius: 8, background: 'var(--cyan)', color: '#00131b', padding: '8px 12px', fontWeight: 700, cursor: 'pointer' }}>
-                Importar agenda
-              </button>
+              <>
+                <select
+                  value={clearPeriod}
+                  onChange={(e) => setClearPeriod(e.target.value as ClearPeriod)}
+                  style={{ background: 'var(--ink-700)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', padding: '8px 10px' }}
+                >
+                  <option value="day">Dia</option>
+                  <option value="week">Semana</option>
+                  <option value="month">Mes</option>
+                </select>
+                <button
+                  onClick={handleClearAgenda}
+                  disabled={clearingAgenda}
+                  style={{ border: '1px solid rgba(244,63,94,0.35)', borderRadius: 8, background: 'rgba(244,63,94,0.14)', color: '#fb7185', padding: '8px 12px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  {clearingAgenda ? 'Removendo...' : 'Remover agenda'}
+                </button>
+                <button onClick={onOpenImport} style={{ border: 'none', borderRadius: 8, background: 'var(--cyan)', color: '#00131b', padding: '8px 12px', fontWeight: 700, cursor: 'pointer' }}>
+                  Importar agenda
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -2142,6 +2173,7 @@ export default function App() {
     addPedidos,
     addAgendaItems,
     clearByPeriod,
+    clearAgendaByPeriod,
     updateOperadorByDate,
     loaded,
     session,
@@ -2262,6 +2294,12 @@ export default function App() {
     const report = await clearByPeriod(dateIso, period)
     const periodLabel = period === 'day' ? 'dia' : period === 'week' ? 'semana' : 'mes'
     showToast(`${report.removidos} registro(s) removidos - ${periodLabel}: ${report.intervalo}`)
+  }
+
+  async function onClearAgendaPeriod(dateIso: string, period: ClearPeriod) {
+    const report = await clearAgendaByPeriod(dateIso, period)
+    const periodLabel = period === 'day' ? 'dia' : period === 'week' ? 'semana' : 'mes'
+    showToast(`${report.removidos} item(ns) de agenda removidos - ${periodLabel}: ${report.intervalo}`)
   }
 
   async function onUpdateOperador(dateIso: string, origem: string, destino: string) {
@@ -2438,6 +2476,7 @@ export default function App() {
           isAdmin={isAdmin}
           onOpenImport={() => setAgendaModal(true)}
           onSaveAtraso={onSaveAgendaAtraso}
+          onClearAgendaPeriod={onClearAgendaPeriod}
         />
       )}
       {activeTab === 'dinamica' && <DinamicaTab pedidos={pedidos} />}

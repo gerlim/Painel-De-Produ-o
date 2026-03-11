@@ -197,6 +197,19 @@ async function deleteByIds(
   }
 }
 
+async function deleteAgendaByIds(
+  supabase: ReturnType<typeof getSupabaseBrowserClient>,
+  ids: number[],
+) {
+  if (!supabase || !ids.length) return
+  const chunkSize = 500
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const batch = ids.slice(i, i + chunkSize)
+    const { error } = await supabase.from('agenda_items').delete().in('id', batch)
+    if (error) throw new Error(error.message)
+  }
+}
+
 function sortPedidos(list: Pedido[]) {
   return [...list].sort((a, b) => {
     const dateCmp = dataToIso(a.data).localeCompare(dataToIso(b.data))
@@ -742,6 +755,35 @@ export function usePedidos() {
     return { removidos: ids.length, intervalo }
   }
 
+  async function clearAgendaByPeriod(anchorDateIso: string, period: ClearPeriod): Promise<ClearByPeriodReport> {
+    if (!supabase) return { removidos: 0, intervalo: '' }
+    if (profile?.role !== 'admin') return { removidos: 0, intervalo: '' }
+    if (!agendaTableEnabled) return { removidos: 0, intervalo: '' }
+
+    const anchor = parseIsoToDate(anchorDateIso)
+    if (!anchor) throw new Error('Data de referencia invalida')
+
+    const { start, end } = periodBounds(anchor, period)
+    const ids = agendaItems
+      .filter((item) => {
+        const date = parseDataToDate(item.agendaData)
+        if (!date) return false
+        const normalized = normalizeDateOnly(date)
+        return normalized >= start && normalized <= end
+      })
+      .map((item) => item.id)
+      .filter((id): id is number => typeof id === 'number')
+
+    const intervalo = start.getTime() === end.getTime() ? formatDate(start) : `${formatDate(start)} a ${formatDate(end)}`
+    if (!ids.length) {
+      return { removidos: 0, intervalo }
+    }
+
+    await deleteAgendaByIds(supabase, ids)
+    await fetchAgendaItems()
+    return { removidos: ids.length, intervalo }
+  }
+
   async function updateOperadorByDate(
     dataIso: string,
     operadorOrigem: string,
@@ -1131,6 +1173,7 @@ export function usePedidos() {
     addAgendaItems,
     clearAll,
     clearByPeriod,
+    clearAgendaByPeriod,
     updateOperadorByDate,
     updateTamanhoNaoIdentificado,
     saveClassificacaoRegra,

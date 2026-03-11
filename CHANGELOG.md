@@ -10,6 +10,11 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.1.6] - 2026-03-10
+
+### Added
+- Botao administrativo para remover a importacao da `Agenda` por `dia`, `semana` ou `mes`, usando a data selecionada na propria aba.
+
 ## [1.1.5] - 2026-03-10
 
 ### Fixed
