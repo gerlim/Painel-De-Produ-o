@@ -10,6 +10,12 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.1.2] - 2026-03-10
+
+### Changed
+- Aba `Agenda` passou a permitir analise de datas futuras mesmo sem nova importacao, mantendo o saldo pendente visivel no dia seguinte.
+- Fila da agenda agora separa explicitamente `Programado Hoje`, `Carregado de Atraso`, `Fila Total do Dia` e `Concluidos Hoje`.
+
 ## [1.1.1] - 2026-03-10
 
 ### Fixed

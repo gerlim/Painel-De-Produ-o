@@ -1591,13 +1591,8 @@ function AgendaTab({
   useEffect(() => {
     if (!importedDates.length) {
       setSelectedDateIso(todayIsoDate())
-      return
     }
-    const selectedDate = fromIsoDate(selectedDateIso)
-    if (!importedDates.includes(selectedDate)) {
-      setSelectedDateIso(toIsoDate(importedDates[importedDates.length - 1]))
-    }
-  }, [importedDates, selectedDateIso])
+  }, [importedDates])
 
   const selectedDate = fromIsoDate(selectedDateIso)
   const servicos = soServicos(pedidos)
@@ -1648,6 +1643,9 @@ function AgendaTab({
   const atrasados = agendaRows.filter((item) => item.status === 'atrasado').length
   const pendentes = agendaRows.filter((item) => item.status === 'pendente').length
   const aderencia = totalAgenda ? (concluidos / totalAgenda) * 100 : 0
+  const programadosHoje = agendaRows.filter((item) => item.agendaData === selectedDate).length
+  const carregadosDeAtraso = agendaRows.filter((item) => comparePtDates(item.agendaData, selectedDate) < 0).length
+  const concluidosHoje = agendaRows.filter((item) => item.producedAt === selectedDate).length
 
   if (!agendaTableEnabled) {
     return (
@@ -1704,10 +1702,17 @@ function AgendaTab({
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
-        <MetricCard title="Itens da Agenda" value={fmt(totalAgenda)} hint={`Data de analise: ${selectedDate}`} icon={<Factory size={14} />} />
-        <MetricCard title="Concluidos no Dia" value={fmt(concluidos)} hint="Itens vinculados a producao" icon={<TrendingUp size={14} />} />
-        <MetricCard title="Atrasos em Aberto" value={fmt(atrasados)} hint="Itens guardados para o proximo dia" icon={<UserRound size={14} />} />
-        <MetricCard title="Aderencia" value={`${aderencia.toFixed(0)}%`} hint={`${fmt(pendentes)} pendente(s) do dia`} icon={<Factory size={14} />} />
+        <MetricCard title="Programado Hoje" value={fmt(programadosHoje)} hint={`Data de analise: ${selectedDate}`} icon={<Factory size={14} />} />
+        <MetricCard title="Carregado de Atraso" value={fmt(carregadosDeAtraso)} hint="Saldo pendente vindo de dias anteriores" icon={<UserRound size={14} />} />
+        <MetricCard title="Fila Total do Dia" value={fmt(totalAgenda)} hint="Programado hoje + saldo carregado" icon={<TrendingUp size={14} />} />
+        <MetricCard title="Concluidos Hoje" value={fmt(concluidosHoje)} hint={`${aderencia.toFixed(0)}% de aderencia na fila do dia`} icon={<Factory size={14} />} />
+      </div>
+
+      <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+        <div style={{ color: 'var(--text-primary)', fontWeight: 700, marginBottom: 6 }}>Leitura do dia</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+          Pendentes do dia: {fmt(pendentes)} | Atrasos em aberto: {fmt(atrasados)} | Concluidos na fila do dia: {fmt(concluidos)}
+        </div>
       </div>
 
       <TableCard title="Status da Agenda">
