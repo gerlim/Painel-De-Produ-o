@@ -10,6 +10,12 @@ e versionamento semantico em [SemVer](https://semver.org/lang/pt-BR/).
 ### Added
 - Placeholder para proximas alteracoes.
 
+## [1.1.12] - 2026-03-16
+
+### Changed
+- Refatorado `src/lib/parser.ts`, separando a logica em modulos internos por dominio (`types`, `shared`, `sizes`, `files`, `orders`, `agenda` e `aggregates`).
+- Mantido o ponto de importacao publico em `src/lib/parser.ts` como fachada de reexport, reduzindo acoplamento sem quebrar os consumidores atuais.
+
 ## [1.1.11] - 2026-03-10
 
 ### Changed
